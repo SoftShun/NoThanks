@@ -39,7 +39,6 @@ class Game {
     this.removedCount = 0;
     this.started = false;
     this.showOpponentTokens = true; // UI preference broadcast to clients
-    this.cardDisplayMode = 'stack'; // 'stack' | 'numbers'
   }
 
   /**
@@ -99,7 +98,6 @@ class Game {
     this.showOpponentTokens = settings && typeof settings.showOpponentTokens === 'boolean'
       ? settings.showOpponentTokens
       : true;
-    this.cardDisplayMode = settings && settings.cardDisplayMode === 'numbers' ? 'numbers' : 'stack';
     // Initialize deck 3–35
     const deck = [];
     for (let i = 3; i <= 35; i++) deck.push(i);
@@ -256,7 +254,6 @@ class Game {
       started: this.started,
       initialTokens: this.initialTokens,
       showOpponentTokens: this.showOpponentTokens,
-      cardDisplayMode: this.cardDisplayMode,
     };
   }
 }

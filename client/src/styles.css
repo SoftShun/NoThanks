@@ -69,8 +69,16 @@ body {
 
 .row {
   display: grid;
-  grid-template-columns: 1fr 2fr; /* 경매(카드) 영역 절반, 사용자 영역 확대 */
+  grid-template-columns: 0.8fr 2.2fr; /* 경매(카드) 영역 더 축소, 사용자 영역 확대 */
   gap: 12px;
+  align-items: start; /* 각 아이템을 상단에 정렬 */
+}
+
+/* 경매 영역 패널 고정 높이 */
+.row > .panel:first-child {
+  height: fit-content;
+  align-self: start;
+  min-height: 200px; /* 버튼을 포함할 수 있는 최소 높이 */
 }
 
 @media (min-width: 640px) {
@@ -89,6 +97,7 @@ body {
 .card {
   width: 100%;
   min-height: 96px; /* 높이 축소 */
+  max-height: 96px; /* 최대 높이 제한으로 고정 */
   background: linear-gradient(160deg, #f7fafc, #eef2ff);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -148,6 +157,8 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+  min-height: 0; /* 카드가 늘어날 때 오른쪽 영역만 확장되도록 */
+  align-self: stretch; /* 사용자 영역이 전체 높이를 차지하도록 */
 }
 
 @media (min-width: 720px) {
@@ -213,29 +224,19 @@ body {
   border: 1px solid #c7d2fe; /* 더 눈에 띄게 */
   color: var(--text);
   font-weight: 700;
-  padding: 4px 8px;
-  border-radius: 8px;
   font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  display: inline-block;
 }
 
-/* Small overlapped card for hand view */
-.card-small {
-  position: absolute;
-  top: 0;
-  width: 48px;
-  height: 72px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: linear-gradient(160deg, #ffffff, #eef2ff);
+.card-group-box { /* 점선을 더 진하게 만들기 */
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  color: #0b0f14;
-  font-weight: 800;
-  font-size: 14px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-  text-shadow: 0 1px 0 #fff;
+  gap: 6px;
   padding: 6px;
+  border: 1px solid #8b9bb4; /* 더 진한 점선 */
+  border-radius: 8px;
+  background: #f0f4f8; /* Light background */
 }
 
 .card-group-gap { width: 14px; height: 1px; display: inline-block; }
@@ -344,5 +345,66 @@ body {
   outline: none;
   box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.25);
   border-color: var(--accent);
+}
+
+.input:disabled {
+  background: #f8fafc;
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.input:disabled:focus {
+  box-shadow: none;
+  border-color: var(--border);
+}
+
+/* 모바일 가로 모드 최적화 */
+@media (orientation: landscape) and (max-width: 768px) {
+  .container {
+    padding: 8px;
+    gap: 8px;
+  }
+  
+  .panel {
+    padding: 8px;
+    border-radius: 8px;
+  }
+  
+  .row {
+    grid-template-columns: 0.7fr 2.3fr; /* 가로모드에서 경매 영역 더 축소 */
+    gap: 8px;
+    align-items: start; /* 가로모드에서도 상단 정렬 유지 */
+  }
+  
+  /* 경매 영역 고정 높이 유지 */
+  .row > .panel:first-child {
+    height: fit-content;
+    align-self: start;
+  }
+  
+  .card {
+    min-height: 80px;
+    max-height: 80px; /* 가로모드에서도 고정 높이 */
+  }
+  
+  .card .value {
+    font-size: clamp(28px, 8vw, 40px);
+  }
+  
+  .players {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    align-self: stretch; /* 사용자 영역 확장 유지 */
+  }
+  
+  .player {
+    padding: 6px;
+  }
+  
+  .btn.sm {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
 }
 
