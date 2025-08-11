@@ -47,7 +47,7 @@ interface ProviderProps {
  */
 export const SocketProvider: React.FC<ProviderProps> = ({
   nickname,
-  serverUrl = 'http://localhost:3001',
+  serverUrl = 'http://43.201.36.137:3001',
   onGameEnd,
   children,
 }) => {
