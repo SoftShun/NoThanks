@@ -310,20 +310,38 @@ io.on('connection', (socket) => {
   /**
    * Handle a player disconnecting. Remove them from the game and
    * broadcast the updated state. If only one player remains after
-   * the disconnect, the game ends immediately.
+   * the disconnect, the game ends immediately. If only AI bots remain,
+   * the game is automatically cancelled.
    */
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
     clearInterval(ping);
     // Remove the player
     game.removePlayer(socket.id);
-    if (game.started && game.players.length < 2) {
-      // End the game if fewer than two players remain
-      const scores = game.calculateScores();
-      io.emit('gameEnd', { results: scores });
-      game.softReset(); // 소프트 리셋으로 변경
-      return;
+    
+    if (game.started) {
+      // AI봇만 남은 경우 게임 자동 취소
+      const humanPlayers = game.players.filter(p => !p.isBot);
+      if (humanPlayers.length === 0 && game.players.length > 0) {
+        console.log('Game cancelled: Only AI bots remain');
+        io.emit('gameEnd', { 
+          results: [], 
+          cancelled: true, 
+          reason: 'AI 봇만 남아 게임이 취소되었습니다.' 
+        });
+        game.softReset();
+        return;
+      }
+      
+      // 기존 로직: 2명 미만 남은 경우 게임 종료
+      if (game.players.length < 2) {
+        const scores = game.calculateScores();
+        io.emit('gameEnd', { results: scores });
+        game.softReset();
+        return;
+      }
     }
+    
     broadcastState();
   });
 });
