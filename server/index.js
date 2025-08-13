@@ -33,22 +33,105 @@ const io = new Server(server, {
 // Create a single game instance
 const game = new Game();
 
+// 턴 시간 초과 처리 함수
+function handleTurnTimeout(playerId) {
+  // 토큰이 있으면 자동 패스, 없으면 자동으로 카드 가져가기
+  const player = game.players.find(p => p.id === playerId);
+  if (!player) return;
+  
+  let result;
+  if (player.tokens > 0) {
+    result = game.pass(playerId);
+  } else {
+    result = game.takeCard(playerId);
+  }
+  
+  if (result && result.gameOver) {
+    const scores = game.calculateScores();
+    io.emit('gameEnd', { results: scores });
+    game.softReset();
+    return;
+  }
+  
+  // 다음 턴 타이머 시작
+  startNextTurn();
+}
+
+// 봇 자동 플레이 처리
+function handleBotTurn() {
+  const currentPlayer = game.players[game.currentPlayerIndex];
+  if (!currentPlayer || !currentPlayer.isBot) return;
+
+  // 봇에게 딜레이 부여 (난이도별 차별화)
+  let baseDelay = 500;  // 중급: 0.5초 기본
+  let randomDelay = 2000; // 중급: +0~2초 랜덤
+  
+  // 난이도별 사고 시간 차별화
+  if (currentPlayer.difficulty === 'expert') {
+    baseDelay = 500;   // 최상급: 0.5초 기본
+    randomDelay = 3000; // 최상급: +0~3초 랜덤
+  } else if (currentPlayer.difficulty === 'hard') {
+    baseDelay = 500;   // 상급: 0.5초 기본
+    randomDelay = 2500; // 상급: +0~2.5초 랜덤
+  }
+  
+  const delay = baseDelay + Math.random() * randomDelay;
+  
+  setTimeout(() => {
+    // 게임이 끝났거나 턴이 바뀌었으면 중단
+    if (!game.started || game.players[game.currentPlayerIndex]?.id !== currentPlayer.id) return;
+
+    // 봇 의사결정
+    const action = currentPlayer.makeDecision(game.getState());
+    
+    let result;
+    if (action === 'take') {
+      result = game.takeCard(currentPlayer.id);
+    } else {
+      result = game.pass(currentPlayer.id);
+    }
+
+    if (result && result.gameOver) {
+      const scores = game.calculateScores();
+      io.emit('gameEnd', { results: scores });
+      game.softReset();
+      return;
+    }
+
+    startNextTurn();
+  }, delay);
+}
+
+// 다음 턴 시작
+function startNextTurn() {
+  // 현재 턴 플레이어가 봇인지 확인
+  const currentPlayer = game.players[game.currentPlayerIndex];
+  if (currentPlayer && currentPlayer.isBot) {
+    // 봇 턴에서는 타이머 없음
+    game.turnStartTime = null;
+    broadcastState();
+    handleBotTurn();
+  } else {
+    // 인간 플레이어 턴에서는 타이머 시작
+    game.startTurnTimer(handleTurnTimeout);
+    broadcastState();
+  }
+}
+
 /**
  * Helper function to broadcast the current game state to all
  * connected clients.
  */
 function broadcastState() {
     const state = game.getState();
-    // Also include hostId (first player) in the broadcast for client UI
-    const hostId = game.players?.[0]?.id || null;
-    io.emit('gameState', { ...state, hostId });
+    io.emit('gameState', state);
 }
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
 
   // Send initial state on connection
-  socket.emit('gameState', { ...game.getState(), hostId: game.players?.[0]?.id || null });
+  socket.emit('gameState', game.getState());
 
   // Heartbeat ping to keep WS stable (prevent some proxies from dropping idle connections)
   const ping = setInterval(() => {
@@ -74,13 +157,10 @@ io.on('connection', (socket) => {
   });
 
   /**
-   * Host starts the game with settings. Only the first player to join
-   * (host) may start the game. Settings include removedCount and
-   * initialTokens.
+   * Host starts the game. Only the host may start the game.
    */
-  socket.on('start', (settings, ack) => {
-    const hostId = game.players?.[0]?.id;
-    if (socket.id !== hostId) {
+  socket.on('start', (_, ack) => {
+    if (socket.id !== game.hostId) {
       socket.emit('gameError', { message: 'Only the host can start the game' });
       if (typeof ack === 'function') ack({ ok: false, error: 'Only the host can start the game' });
       return;
@@ -90,15 +170,15 @@ io.on('connection', (socket) => {
       if (typeof ack === 'function') ack({ ok: false, error: 'Game already started' });
       return;
     }
-    const success = game.start(settings || {});
+    const success = game.start();
     if (!success) {
       socket.emit('gameError', { message: 'Failed to start the game' });
       if (typeof ack === 'function') ack({ ok: false, error: 'Failed to start the game' });
       return;
     }
-    broadcastState();
-    // Immediately send the current state to the starter too (redundant safety)
-    socket.emit('gameState', { ...game.getState(), hostId: game.players?.[0]?.id || null });
+    
+    // 게임 시작 시 첫 턴 시작
+    startNextTurn();
     if (typeof ack === 'function') ack({ ok: true });
   });
 
@@ -120,10 +200,12 @@ io.on('connection', (socket) => {
     if (result.gameOver) {
       const scores = game.calculateScores();
       io.emit('gameEnd', { results: scores });
-      game.reset();
+      game.softReset(); // 소프트 리셋으로 변경
       return;
     }
-    broadcastState();
+    
+    // 다음 턴 시작
+    startNextTurn();
   });
 
   /**
@@ -138,9 +220,90 @@ io.on('connection', (socket) => {
     if (result.gameOver) {
       const scores = game.calculateScores();
       io.emit('gameEnd', { results: scores });
-      game.reset();
+      game.softReset(); // 소프트 리셋으로 변경
       return;
     }
+    
+    // take는 턴이 바뀌지 않지만, 카드를 가져간 후 다음 턴 시작
+    startNextTurn();
+  });
+
+  /**
+   * 설정 업데이트 (방장만 가능)
+   */
+  socket.on('updateSettings', (newSettings) => {
+    // 입력 유효성 검증
+    if (!newSettings || typeof newSettings !== 'object') {
+      socket.emit('gameError', { message: '잘못된 설정 데이터입니다.' });
+      return;
+    }
+    
+    if (socket.id !== game.hostId) {
+      socket.emit('gameError', { message: '방장만 설정을 변경할 수 있습니다.' });
+      return;
+    }
+    
+    const success = game.updateSettings(newSettings);
+    if (!success) {
+      socket.emit('gameError', { message: '게임이 진행 중일 때는 설정을 변경할 수 없습니다.' });
+      return;
+    }
+    
+    broadcastState();
+  });
+
+  /**
+   * 방장 양도
+   */
+  socket.on('transferHost', (newHostId) => {
+    const success = game.transferHost(socket.id, newHostId);
+    if (!success) {
+      socket.emit('gameError', { message: '방장 양도에 실패했습니다.' });
+      return;
+    }
+    
+    broadcastState();
+  });
+
+  /**
+   * AI 봇 추가 (방장만 가능)
+   */
+  socket.on('addBot', (difficulty) => {
+    // 입력 유효성 검증
+    if (typeof difficulty !== 'string' || !['medium', 'hard', 'expert'].includes(difficulty)) {
+      socket.emit('gameError', { message: '잘못된 봇 난이도입니다.' });
+      return;
+    }
+    
+    if (socket.id !== game.hostId) {
+      socket.emit('gameError', { message: '방장만 봇을 추가할 수 있습니다.' });
+      return;
+    }
+    
+    const success = game.addBot(difficulty);
+    if (!success) {
+      socket.emit('gameError', { message: '봇을 추가할 수 없습니다. (최대 3개, 총 인원 7명 제한)' });
+      return;
+    }
+    
+    broadcastState();
+  });
+
+  /**
+   * AI 봇 제거 (방장만 가능)
+   */
+  socket.on('removeBot', (botId) => {
+    if (socket.id !== game.hostId) {
+      socket.emit('gameError', { message: '방장만 봇을 제거할 수 있습니다.' });
+      return;
+    }
+    
+    const success = game.removeBot(botId);
+    if (!success) {
+      socket.emit('gameError', { message: '봇을 제거할 수 없습니다.' });
+      return;
+    }
+    
     broadcastState();
   });
 
@@ -158,7 +321,7 @@ io.on('connection', (socket) => {
       // End the game if fewer than two players remain
       const scores = game.calculateScores();
       io.emit('gameEnd', { results: scores });
-      game.reset();
+      game.softReset(); // 소프트 리셋으로 변경
       return;
     }
     broadcastState();

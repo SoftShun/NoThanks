@@ -18,6 +18,7 @@ build/
 # IDE files
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 
@@ -60,3 +61,6 @@ jspm_packages/
 
 # Yarn Integrity file
 .yarn-integrity
+
+# Claude Code configuration
+CLAUDE.md

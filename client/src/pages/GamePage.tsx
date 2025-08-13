@@ -1,5 +1,32 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useSocket } from '../contexts/SocketContext';
+
+// Helper function to calculate player score
+const calculatePlayerScore = (cards: number[], tokens: number): number => {
+  const sorted = cards.slice().sort((a, b) => a - b);
+  let sum = 0;
+  let prev: number | null = null;
+  for (const card of sorted) {
+    if (prev == null || card !== prev + 1) sum += card;
+    prev = card;
+  }
+  return sum - tokens;
+};
+
+// Helper function to group consecutive cards
+const groupConsecutiveCards = (cards: number[]): number[][] => {
+  const sorted = cards.slice().sort((a, b) => a - b);
+  const groups: number[][] = [];
+  for (const card of sorted) {
+    const last = groups[groups.length - 1];
+    if (last && card === last[last.length - 1] + 1) {
+      last.push(card);
+    } else {
+      groups.push([card]);
+    }
+  }
+  return groups;
+};
 
 /**
  * GamePage handles both the lobby (pre‑game) interface and the
@@ -7,17 +34,32 @@ import { useSocket } from '../contexts/SocketContext';
  * current game state and to send player actions to the server.
  */
 const GamePage: React.FC = () => {
-  const { socket, state, pass, take, startGame, error, clearError } = useSocket();
+  const { socket, state, pass, take, startGame, updateSettings, transferHost, addBot, removeBot, error, clearError } = useSocket();
   const yourId = socket?.id;
-
-  // Local settings for host to configure game
-  const [removedCount, setRemovedCount] = useState(9);
-  const [initialTokens, setInitialTokens] = useState(11);
-  const [showOpponentTokens, setShowOpponentTokens] = useState(true);
   // 버튼 로딩 상태는 훅 규칙을 지키기 위해 컴포넌트 최상단에 선언
   const [starting, setStarting] = useState(false);
   const [chipAnim, setChipAnim] = useState(0);
   const [takeAnimKey, setTakeAnimKey] = useState(0);
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [selectedBotDifficulty, setSelectedBotDifficulty] = useState<string>('medium');
+
+  // 현재 설정을 가져옴 (서버에서 받은 설정 사용) - Hook 순서 보장을 위해 최상단에 선언
+  const settings = state?.gameSettings;
+
+  // Extract timer-related values for stable dependencies
+  const gameStarted = state?.started;
+  const turnStartTime = state?.turnStartTime;
+  const turnTimeLimit = settings?.turnTimeLimit;
+
+  // Memoize expensive calculations for all players - Hook 순서 보장을 위해 항상 실행
+  const playerData = useMemo(() => {
+    if (!state?.players) return [];
+    return state.players.map(p => ({
+      ...p,
+      score: calculatePlayerScore(p.cards, p.tokens),
+      cardGroups: groupConsecutiveCards(p.cards)
+    }));
+  }, [state?.players]);
 
   // 키보드 접근성: 스페이스/엔터로 주요 액션 트리거
   // 항상 동일한 훅 순서를 보장하기 위해 early return 이전에 선언
@@ -33,6 +75,32 @@ const GamePage: React.FC = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [yourId, pass, take, state?.currentPlayerId, state?.started]);
 
+  // 턴 타이머 카운트다운 관리
+  useEffect(() => {
+    if (!gameStarted || !settings || turnTimeLimit === 0) {
+      setTimeLeft(0);
+      return;
+    }
+    
+    // 봇 턴이거나 타이머가 설정되지 않은 경우
+    if (!turnStartTime) {
+      setTimeLeft(0);
+      return;
+    }
+
+    const updateTimer = () => {
+      const now = Date.now();
+      const elapsed = Math.floor((now - turnStartTime) / 1000);
+      const remaining = Math.max(0, turnTimeLimit - elapsed);
+      setTimeLeft(remaining);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000); // 1초마다 업데이트
+
+    return () => clearInterval(interval);
+  }, [gameStarted, turnStartTime, turnTimeLimit, settings]);
+
   if (!state) {
     return (
       <div className="container">
@@ -41,8 +109,18 @@ const GamePage: React.FC = () => {
     );
   }
 
-  // Determine if you are the host (first player)
+  // Determine if you are the host
   const isHost = state.hostId === yourId;
+  
+  // 설정이 없는 경우 로딩 중이므로 대기
+  if (!settings) {
+    return (
+      <div className="container">
+        <div className="panel">설정을 불러오는 중...</div>
+      </div>
+    );
+  }
+  
 
   // If game has not started, show lobby
   if (!state.started) {
@@ -75,8 +153,11 @@ const GamePage: React.FC = () => {
                 inputMode="numeric"
                 min={1}
                 max={32}
-                value={removedCount}
-                onChange={(e) => setRemovedCount(Math.max(1, Math.min(32, Number(e.target.value) || 1)))}
+                value={settings.removedCount}
+                onChange={(e) => {
+                  const value = Math.max(1, Math.min(32, Number(e.target.value) || 1));
+                  updateSettings({ removedCount: value });
+                }}
                 aria-label="제거할 카드 수 (1–32)"
                 className="input"
                 disabled={!isHost}
@@ -91,8 +172,11 @@ const GamePage: React.FC = () => {
                 inputMode="numeric"
                 min={1}
                 max={50}
-                value={initialTokens}
-                onChange={(e) => setInitialTokens(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
+                value={settings.initialTokens}
+                onChange={(e) => {
+                  const value = Math.max(1, Math.min(50, Number(e.target.value) || 1));
+                  updateSettings({ initialTokens: value });
+                }}
                 aria-label="초기 토큰 수 (1–50)"
                 className="input"
                 disabled={!isHost}
@@ -104,14 +188,44 @@ const GamePage: React.FC = () => {
               <select 
                 id="showTokens" 
                 className="input" 
-                value={showOpponentTokens ? 'public' : 'private'} 
-                onChange={(e)=> setShowOpponentTokens(e.target.value === 'public')}
+                value={settings.showOpponentTokens ? 'public' : 'private'} 
+                onChange={(e) => updateSettings({ showOpponentTokens: e.target.value === 'public' })}
                 disabled={!isHost}
               >
                 <option value="public">공개</option>
                 <option value="private">비공개</option>
               </select>
               <div className="help">상대 플레이어의 남은 칩 수를 공개/비공개로 설정</div>
+            </div>
+            <div className="field">
+              <label className="field-label" htmlFor="showScore">실시간 점수 표시</label>
+              <select 
+                id="showScore" 
+                className="input" 
+                value={settings.showRealTimeScore ? 'show' : 'hide'} 
+                onChange={(e) => updateSettings({ showRealTimeScore: e.target.value === 'show' })}
+                disabled={!isHost}
+              >
+                <option value="show">표시</option>
+                <option value="hide">숨김</option>
+              </select>
+              <div className="help">게임 중 현재 점수를 실시간으로 표시</div>
+            </div>
+            <div className="field">
+              <label className="field-label" htmlFor="turnLimit">턴 시간 제한</label>
+              <select 
+                id="turnLimit" 
+                className="input" 
+                value={settings.turnTimeLimit} 
+                onChange={(e) => updateSettings({ turnTimeLimit: Number(e.target.value) })}
+                disabled={!isHost}
+              >
+                <option value={0}>무제한</option>
+                <option value={15}>15초</option>
+                <option value={30}>30초</option>
+                <option value={60}>60초</option>
+              </select>
+              <div className="help">각 턴의 시간 제한 (시간 초과 시 자동 행동)</div>
             </div>
           </div>
           {isHost && (
@@ -121,7 +235,7 @@ const GamePage: React.FC = () => {
                 onClick={async () => {
                   if (starting) return;
                   setStarting(true);
-                  const ok = await startGame({ removedCount: removedCount || 1, initialTokens: initialTokens || 1, showOpponentTokens });
+                  const ok = await startGame();
                   setStarting(false);
                   if (!ok) return;
                 }}
@@ -132,6 +246,68 @@ const GamePage: React.FC = () => {
             </div>
           )}
         </div>
+        {isHost && state.players.length > 1 && (
+          <div className="panel">
+            <div className="title" style={{ fontSize: 16 }}>방장 양도</div>
+            <div className="row" style={{ marginTop: 8, gap: 8, flexWrap: 'wrap' }}>
+              {state.players.filter(p => p.id !== yourId && !p.isBot).map(p => (
+                <button
+                  key={p.id}
+                  className="btn sm"
+                  onClick={() => transferHost(p.id)}
+                  aria-label={`${p.nickname}에게 방장 양도`}
+                >
+                  {p.nickname}에게 양도
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {isHost && (
+          <div className="panel">
+            <div className="title" style={{ fontSize: 16 }}>AI 봇 관리</div>
+            <div className="row" style={{ marginTop: 8, gap: 8, flexWrap: 'wrap' }}>
+              <select 
+                className="input" 
+                style={{ minWidth: 120 }}
+                value={selectedBotDifficulty}
+                onChange={(e) => setSelectedBotDifficulty(e.target.value)}
+              >
+                <option value="medium">중 (일반)</option>
+                <option value="hard">상 (숙련)</option>
+                <option value="expert">최상 (전문)</option>
+              </select>
+              <button
+                className="btn sm"
+                onClick={() => {
+                  addBot(selectedBotDifficulty);
+                }}
+                disabled={state.players.length >= 7 || state.players.filter(p => p.isBot === true).length >= 3}
+                aria-label="AI 봇 추가"
+              >
+                봇 추가
+              </button>
+            </div>
+            {state.players.filter(p => p.isBot).length > 0 && (
+              <div className="row" style={{ marginTop: 8, gap: 8, flexWrap: 'wrap' }}>
+                {state.players.filter(p => p.isBot).map(p => (
+                  <button
+                    key={p.id}
+                    className="btn sm"
+                    style={{ backgroundColor: '#ff4444', color: 'white' }}
+                    onClick={() => removeBot(p.id)}
+                    aria-label={`${p.nickname} 제거`}
+                  >
+                    {p.nickname} 제거
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="help" style={{ marginTop: 4, fontSize: '0.9em', opacity: 0.7 }}>
+              최대 3개의 봇을 추가할 수 있습니다. 총 플레이어는 7명까지 가능합니다.
+            </div>
+          </div>
+        )}
         <div className="panel">
           <div className="meta" role="note">
             • 목표는 낮은 점수입니다. 연속된 카드 묶음에서 가장 낮은 카드만 합산, 합계에서 토큰 수를 뺍니다.
@@ -152,12 +328,17 @@ const GamePage: React.FC = () => {
   const you = state.players.find((p) => p.id === yourId);
   const isYourTurn = state.currentPlayerId === yourId;
 
-  
-
   return (
     <div className="container" role="main">
-      <div className={`turn-banner ${isYourTurn ? 'is-you' : ''}`} role="status" aria-live="polite">
-        {isYourTurn ? '당신의 차례입니다' : currentPlayer ? `${currentPlayer.nickname} 님의 차례입니다` : '대기 중…'}
+      <div className={`turn-banner ${isYourTurn ? 'is-you' : ''}`} role="status" aria-live="polite" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
+        <div>
+          {isYourTurn ? '당신의 차례입니다' : currentPlayer ? `${currentPlayer.nickname} 님의 차례입니다` : '대기 중…'}
+        </div>
+        {settings.turnTimeLimit > 0 && state.turnStartTime && (
+          <div className="timer" style={{ fontSize: '0.9em', opacity: 0.8, color: timeLeft <= 5 ? '#ff4444' : 'inherit' }}>
+            ⏱️ {timeLeft > 0 ? `${timeLeft}초` : '타임아웃'}
+          </div>
+        )}
       </div>
       <div className="row">
         <div className="panel">
@@ -187,7 +368,7 @@ const GamePage: React.FC = () => {
 
         <div className="panel">
           <div className="players" aria-label="플레이어 목록">
-            {state.players.map((p) => {
+            {playerData.map((p) => {
               const isYou = p.id === yourId;
               return (
                 <div key={p.id} className={`player ${p.id === state.currentPlayerId ? 'active flash-win' : ''}`} aria-current={isYou ? 'true' : undefined}>
@@ -199,41 +380,22 @@ const GamePage: React.FC = () => {
                   </div>
                   <div className="tokens" style={{ marginTop: 6 }}>
                     <div className="chip" aria-hidden>●</div>
-                    <span>{(state.showOpponentTokens || isYou) ? p.tokens : '?'}</span>
-                    {state.showOpponentTokens && (
-                      <span className="score-badge" title="현재 추정 점수" style={{ marginLeft: 6 }}>
-                        {(() => {
-                          const sorted = p.cards.slice().sort((a,b)=>a-b);
-                          let sum = 0; let prev: number | null = null;
-                          for (const c of sorted) { if (prev == null || c !== prev + 1) sum += c; prev = c; }
-                          return sum - p.tokens;
-                        })()}
+                    <span>{(settings.showOpponentTokens || isYou) ? p.tokens : '?'}</span>
+                    {settings.showRealTimeScore && (settings.showOpponentTokens || isYou) && (
+                      <span className="score-badge" title="현재 점수" style={{ marginLeft: 6 }}>
+                        {p.score}
                       </span>
                     )}
                   </div>
                   {p.cards.length > 0 && (
                     <div className="my-cards" aria-label={isYou ? '내 카드' : `${p.nickname}님의 카드`}>
-                      {(() => {
-                        const sorted = p.cards.slice().sort((a,b)=>a-b);
-                        const groups: number[][] = [];
-                        for (const card of sorted) {
-                          const last = groups[groups.length-1];
-                          if (last && card === last[last.length-1] + 1) {
-                            last.push(card);
-                          } else {
-                            groups.push([card]);
-                          }
-                        }
-                        return (
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            {groups.map((g, gi)=> (
-                              <div key={`g-${gi}`} className="card-group-box">
-                                {g.map((c)=> (<span key={`n-${gi}-${c}`} className="tag">{c}</span>))}
-                              </div>
-                            ))}
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {p.cardGroups.map((g, gi) => (
+                          <div key={`g-${gi}`} className="card-group-box">
+                            {g.map((c) => (<span key={`n-${gi}-${c}`} className="tag">{c}</span>))}
                           </div>
-                        );
-                      })()}
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

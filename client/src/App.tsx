@@ -20,7 +20,7 @@ const App: React.FC = () => {
   };
 
   if (results) {
-    return <ResultPage results={results} onRestart={() => { setResults(null); setNickname(null); }} />;
+    return <ResultPage results={results} onRestart={() => { setResults(null); }} />; // 닉네임 유지
   }
 
   // If no nickname, show join page

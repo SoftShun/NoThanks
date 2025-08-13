@@ -7,6 +7,15 @@ export interface PlayerState {
   nickname: string;
   tokens: number;
   cards: number[];
+  isBot?: boolean;
+}
+
+export interface GameSettings {
+  removedCount: number;
+  initialTokens: number;
+  showOpponentTokens: boolean;
+  showRealTimeScore: boolean;
+  turnTimeLimit: number;
 }
 
 export interface GameState {
@@ -17,8 +26,9 @@ export interface GameState {
   deckSize: number;
   removedCount: number;
   started: boolean;
-  initialTokens: number;
   hostId: string | null;
+  gameSettings: GameSettings | null;
+  turnStartTime: number | null;
 }
 
 interface SocketContextValue {
@@ -28,7 +38,11 @@ interface SocketContextValue {
   clearError: () => void;
   pass: () => void;
   take: () => void;
-  startGame: (settings: { removedCount: number; initialTokens: number }) => Promise<boolean>;
+  startGame: () => Promise<boolean>;
+  updateSettings: (settings: Partial<GameSettings>) => void;
+  transferHost: (newHostId: string) => void;
+  addBot: (difficulty: string) => void;
+  removeBot: (botId: string) => void;
 }
 
 const SocketContext = createContext<SocketContextValue | undefined>(undefined);
@@ -45,9 +59,28 @@ interface ProviderProps {
  * listens for game events. It exposes the current game state and
  * action functions to consumers via context.
  */
+// 환경에 따른 서버 URL 자동 설정
+const getDefaultServerUrl = () => {
+  // 현재 페이지의 hostname 확인
+  const currentHost = window.location.hostname;
+  
+  // 로컬 개발 환경 (localhost, 127.0.0.1)
+  if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
+    return 'http://localhost:3001';
+  }
+  
+  // 배포 환경 (43.201.36.137 또는 다른 IP)
+  if (currentHost === '43.201.36.137') {
+    return 'http://43.201.36.137:3001';
+  }
+  
+  // 기본값: 현재 호스트의 3001 포트 사용
+  return `http://${currentHost}:3001`;
+};
+
 export const SocketProvider: React.FC<ProviderProps> = ({
   nickname,
-  serverUrl = 'http://43.201.36.137:3001',
+  serverUrl = getDefaultServerUrl(),
   onGameEnd,
   children,
 }) => {
@@ -89,15 +122,20 @@ export const SocketProvider: React.FC<ProviderProps> = ({
     s.on('connect', () => {
       // Send join request once connected
       s.emit('join', { nickname });
+      setError(null); // 연결 성공 시 에러 상태 초기화
       // eslint-disable-next-line no-console
-      console.log('[socket] connected', s.id);
+      console.log('[socket] connected to', serverUrl, s.id);
     });
     s.on('disconnect', (reason) => {
       // eslint-disable-next-line no-console
       console.warn('[socket] disconnected', reason);
+      if (reason === 'transport close' || reason === 'transport error') {
+        setError(`서버 연결이 끊어졌습니다. 서버가 실행 중인지 확인하세요. (${serverUrl})`);
+      }
     });
     s.on('connect_error', (err) => {
-      setError(err?.message || 'Connection error');
+      console.error('[socket] connection error:', err);
+      setError(`서버에 연결할 수 없습니다. 서버가 실행 중인지 확인하세요. (${serverUrl})`);
     });
     return () => {
       try { s.disconnect(); } catch {}
@@ -114,10 +152,10 @@ export const SocketProvider: React.FC<ProviderProps> = ({
     if (!socket) return;
     socket.emit('take');
   }, [socket]);
-  const startGame = React.useCallback((settings: { removedCount: number; initialTokens: number }) => {
+  const startGame = React.useCallback(() => {
     return new Promise<boolean>((resolve) => {
       if (!socket) { resolve(false); return; }
-      socket.emit('start', settings, (res: any) => {
+      socket.emit('start', null, (res: any) => {
         const ok = !!res?.ok;
         if (!ok) setError(res?.error || 'Failed to start');
         resolve(ok);
@@ -125,9 +163,29 @@ export const SocketProvider: React.FC<ProviderProps> = ({
     });
   }, [socket]);
 
+  const updateSettings = React.useCallback((settings: Partial<GameSettings>) => {
+    if (!socket) return;
+    socket.emit('updateSettings', settings);
+  }, [socket]);
+
+  const transferHost = React.useCallback((newHostId: string) => {
+    if (!socket) return;
+    socket.emit('transferHost', newHostId);
+  }, [socket]);
+
+  const addBot = React.useCallback((difficulty: string) => {
+    if (!socket) return;
+    socket.emit('addBot', difficulty);
+  }, [socket]);
+
+  const removeBot = React.useCallback((botId: string) => {
+    if (!socket) return;
+    socket.emit('removeBot', botId);
+  }, [socket]);
+
   const value = useMemo(
-    () => ({ socket, state, error, clearError: () => setError(null), pass, take, startGame }),
-    [socket, state, error, pass, take, startGame],
+    () => ({ socket, state, error, clearError: () => setError(null), pass, take, startGame, updateSettings, transferHost, addBot, removeBot }),
+    [socket, state, error, pass, take, startGame, updateSettings, transferHost, addBot, removeBot],
   );
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
 };

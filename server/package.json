@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "dev": "lsof -ti:3001 | xargs kill -9 2>/dev/null || true && node index.js",
     "test": "node --test"
   },
   "dependencies": {
