@@ -407,7 +407,7 @@ class Game {
       cards: []
     }));
     
-    // 방장이 봇이었다면 첫 번째 인간 플레이어를 방장으로 설정
+    // 방장이 봇이었거나 인간 플레이어가 없으면 첫 번째 인간 플레이어를 방장으로 설정
     const hostExists = this.players.find(p => p.id === savedHostId);
     this.hostId = hostExists ? savedHostId : (this.players[0]?.id || null);
     
@@ -419,6 +419,13 @@ class Game {
       showRealTimeScore: true,
       turnTimeLimit: 30
     };
+  }
+
+  /**
+   * 인간 플레이어가 있는지 확인
+   */
+  hasHumanPlayers() {
+    return this.players.some(p => !p.isBot);
   }
 
   /**

@@ -48,8 +48,7 @@ function handleTurnTimeout(playerId) {
   
   if (result && result.gameOver) {
     const scores = game.calculateScores();
-    io.emit('gameEnd', { results: scores });
-    game.softReset();
+    handleGameEnd(scores);
     return;
   }
   
@@ -93,8 +92,7 @@ function handleBotTurn() {
 
     if (result && result.gameOver) {
       const scores = game.calculateScores();
-      io.emit('gameEnd', { results: scores });
-      game.softReset();
+      handleGameEnd(scores);
       return;
     }
 
@@ -125,6 +123,29 @@ function startNextTurn() {
 function broadcastState() {
     const state = game.getState();
     io.emit('gameState', state);
+}
+
+/**
+ * 게임 종료 후 처리 및 상태 확인
+ */
+function handleGameEnd(results, cancelled = false, reason = null) {
+  // 게임 종료 이벤트 발송
+  if (cancelled) {
+    io.emit('gameEnd', { results, cancelled, reason });
+  } else {
+    io.emit('gameEnd', { results });
+  }
+  
+  // 소프트 리셋 (AI봇 제거)
+  game.softReset();
+  
+  // 인간 플레이어가 없으면 완전 초기화
+  if (!game.hasHumanPlayers()) {
+    console.log('No human players remain, performing full reset');
+    game.reset(); // 완전 초기화
+  }
+  
+  broadcastState();
 }
 
 io.on('connection', (socket) => {
@@ -170,6 +191,14 @@ io.on('connection', (socket) => {
       if (typeof ack === 'function') ack({ ok: false, error: 'Game already started' });
       return;
     }
+    
+    // 인간 플레이어가 있는지 확인
+    if (!game.hasHumanPlayers()) {
+      socket.emit('gameError', { message: 'At least one human player is required to start the game' });
+      if (typeof ack === 'function') ack({ ok: false, error: 'At least one human player is required to start the game' });
+      return;
+    }
+    
     const success = game.start();
     if (!success) {
       socket.emit('gameError', { message: 'Failed to start the game' });
@@ -199,8 +228,7 @@ io.on('connection', (socket) => {
     }
     if (result.gameOver) {
       const scores = game.calculateScores();
-      io.emit('gameEnd', { results: scores });
-      game.softReset(); // 소프트 리셋으로 변경
+      handleGameEnd(scores);
       return;
     }
     
@@ -219,8 +247,7 @@ io.on('connection', (socket) => {
     }
     if (result.gameOver) {
       const scores = game.calculateScores();
-      io.emit('gameEnd', { results: scores });
-      game.softReset(); // 소프트 리셋으로 변경
+      handleGameEnd(scores);
       return;
     }
     
@@ -324,20 +351,14 @@ io.on('connection', (socket) => {
       const humanPlayers = game.players.filter(p => !p.isBot);
       if (humanPlayers.length === 0 && game.players.length > 0) {
         console.log('Game cancelled: Only AI bots remain');
-        io.emit('gameEnd', { 
-          results: [], 
-          cancelled: true, 
-          reason: 'AI 봇만 남아 게임이 취소되었습니다.' 
-        });
-        game.softReset();
+        handleGameEnd([], true, 'AI 봇만 남아 게임이 취소되었습니다.');
         return;
       }
       
       // 기존 로직: 2명 미만 남은 경우 게임 종료
       if (game.players.length < 2) {
         const scores = game.calculateScores();
-        io.emit('gameEnd', { results: scores });
-        game.softReset();
+        handleGameEnd(scores);
         return;
       }
     }
