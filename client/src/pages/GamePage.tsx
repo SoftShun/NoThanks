@@ -1,5 +1,13 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useSocket } from '../contexts/SocketContext';
+import { 
+  HiPlay, 
+  HiOutlineXCircle, 
+  HiOutlineClock,
+  HiOutlineSparkles,
+  HiChevronRight
+} from 'react-icons/hi2';
+import { RiCoinLine } from 'react-icons/ri';
 
 // Helper function to calculate player score
 const calculatePlayerScore = (cards: number[], tokens: number): number => {
@@ -331,12 +339,28 @@ const GamePage: React.FC = () => {
   return (
     <div className="container" role="main">
       <div className={`turn-banner ${isYourTurn ? 'is-you' : ''}`} role="status" aria-live="polite" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
-        <div>
-          {isYourTurn ? '당신의 차례입니다' : currentPlayer ? `${currentPlayer.nickname} 님의 차례입니다` : '대기 중…'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {isYourTurn ? (
+            <HiOutlineSparkles style={{ fontSize: '1.2em', color: 'var(--accent)' }} />
+          ) : (
+            <HiChevronRight style={{ fontSize: '1.2em', color: 'var(--muted)' }} />
+          )}
+          <strong>
+            {isYourTurn ? '당신의 차례입니다' : currentPlayer ? `${currentPlayer.nickname} 님의 차례입니다` : '대기 중…'}
+          </strong>
         </div>
         {settings.turnTimeLimit > 0 && state.turnStartTime && (
-          <div className="timer" style={{ fontSize: '0.9em', opacity: 0.8, color: timeLeft <= 5 ? '#ff4444' : 'inherit' }}>
-            ⏱️ {timeLeft > 0 ? `${timeLeft}초` : '타임아웃'}
+          <div className="timer" style={{ 
+            fontSize: '0.9em', 
+            fontWeight: '600', 
+            opacity: 0.9, 
+            color: timeLeft <= 5 ? '#ff4444' : timeLeft <= 10 ? '#ff8c00' : 'inherit',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4
+          }}>
+            <HiOutlineClock />
+            {timeLeft > 0 ? `${timeLeft}초` : '타임아웃'}
           </div>
         )}
       </div>
@@ -348,7 +372,7 @@ const GamePage: React.FC = () => {
               {chipAnim > 0 && <div className="chip-fly" onAnimationEnd={() => setChipAnim(0)} />}
             </div>
             <div className="pile-badge" aria-label={`카드 위 토큰 ${state.pileTokens}개`}>
-              <div className="chip" aria-hidden>●</div>
+              <RiCoinLine style={{ color: 'var(--chip)', fontSize: '1.2em' }} aria-hidden />
               <div style={{ color: 'var(--muted)' }}>+{state.pileTokens}</div>
             </div>
           </div>
@@ -357,10 +381,51 @@ const GamePage: React.FC = () => {
             <span>제거된 카드 수: {state.removedCount}</span>
           </div>
           <div className="controls" style={{ marginTop: 12 }}>
-            <button className="btn primary sm" onClick={() => { setTakeAnimKey((k)=>k+1); take(); }} disabled={!isYourTurn} aria-disabled={!isYourTurn} aria-label="카드 가져오기">
+            <button 
+              className="btn primary sm" 
+              onClick={() => { 
+                setTakeAnimKey((k)=>k+1); 
+                take(); 
+              }} 
+              disabled={!isYourTurn} 
+              aria-disabled={!isYourTurn} 
+              aria-label="카드 가져오기"
+              style={{ 
+                background: isYourTurn 
+                  ? 'linear-gradient(135deg, #0891b2, #0e7490)' 
+                  : undefined,
+                borderColor: isYourTurn ? '#0891b2' : undefined,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                justifyContent: 'center'
+              }}
+            >
+              <HiPlay style={{ fontSize: '1.1em' }} />
               가져오기
             </button>
-            <button className="btn sm" onClick={() => { setChipAnim((k) => k + 1); pass(); }} disabled={!isYourTurn} aria-disabled={!isYourTurn} aria-label="패스">
+            <button 
+              className="btn sm" 
+              onClick={() => { 
+                setChipAnim((k) => k + 1); 
+                pass(); 
+              }} 
+              disabled={!isYourTurn} 
+              aria-disabled={!isYourTurn} 
+              aria-label="패스"
+              style={{
+                background: isYourTurn 
+                  ? 'linear-gradient(135deg, #64748b, #475569)' 
+                  : undefined,
+                borderColor: isYourTurn ? '#64748b' : undefined,
+                color: isYourTurn ? 'white' : undefined,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                justifyContent: 'center'
+              }}
+            >
+              <HiOutlineXCircle style={{ fontSize: '1.1em' }} />
               패스
             </button>
           </div>
@@ -379,12 +444,27 @@ const GamePage: React.FC = () => {
                     </span>
                   </div>
                   <div className="tokens" style={{ marginTop: 6 }}>
-                    <div className="chip" aria-hidden>●</div>
+                    <RiCoinLine style={{ color: 'var(--chip)', fontSize: '1.1em' }} aria-hidden />
                     <span>{(settings.showOpponentTokens || isYou) ? p.tokens : '?'}</span>
                     {settings.showRealTimeScore && (settings.showOpponentTokens || isYou) && (
-                      <span className="score-badge" title="현재 점수" style={{ marginLeft: 6 }}>
+                      <div className="score-display-mini" title="현재 점수" style={{ 
+                        marginLeft: 8,
+                        background: p.score <= 0 
+                          ? 'linear-gradient(135deg, #10b981, #059669)' 
+                          : p.score <= 20 
+                          ? 'linear-gradient(135deg, #06b6d4, #0891b2)'
+                          : 'linear-gradient(135deg, #f59e0b, #d97706)',
+                        color: 'white',
+                        padding: '2px 8px',
+                        borderRadius: '8px',
+                        fontSize: '0.75em',
+                        fontWeight: '600',
+                        minWidth: '24px',
+                        textAlign: 'center',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                      }}>
                         {p.score}
-                      </span>
+                      </div>
                     )}
                   </div>
                   {p.cards.length > 0 && (
