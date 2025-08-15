@@ -2,7 +2,10 @@ import React from 'react';
 import { 
   HiTrophy, 
   HiArrowPath,
-  HiMiniSparkles
+  HiStar,
+  HiBolt,
+  HiChevronRight,
+  HiFire
 } from 'react-icons/hi2';
 import { RiCoinLine, RiMedalLine } from 'react-icons/ri';
 
@@ -12,83 +15,155 @@ interface ResultPageProps {
 }
 
 /**
- * Displays the final results of a game. Shows each player's rank,
- * nickname, score, tokens and card list. Provides a button to
- * restart the game by clearing the results state in the parent
- * component.
+ * 최신 디자인의 게임 결과 페이지 - 모바일 우선 미니멀 디자인
+ * 승리자 강조, 성과 통계, 인터랙티브 요소 포함
  */
 const ResultPage: React.FC<ResultPageProps> = ({ results, onRestart }) => {
+  const winner = results[0];
+  const totalPlayers = results.length;
+  
+  // 추가 통계 계산
+  const getPerformanceLevel = (rank: number, totalPlayers: number) => {
+    const ratio = rank / totalPlayers;
+    if (ratio <= 0.2) return 'excellent';
+    if (ratio <= 0.5) return 'good';
+    if (ratio <= 0.8) return 'average';
+    return 'poor';
+  };
+
+  const getPerformanceIcon = (level: string) => {
+    switch (level) {
+      case 'excellent': return HiFire;
+      case 'good': return HiStar;
+      case 'average': return HiBolt;
+      default: return HiBolt; // 기본값도 HiBolt로 안전하게
+    }
+  };
+
+  const getPerformanceColor = (level: string) => {
+    switch (level) {
+      case 'excellent': return '#ef4444'; // 빨간색 (불꽃)
+      case 'good': return '#10b981'; // 초록색 (좋음)
+      case 'average': return '#f59e0b'; // 노란색 (평균)
+      default: return '#6b7280'; // 회색 (아쉬움)
+    }
+  };
+
   return (
-    <div className="container">
-      <div className="header">
-        <div className="title" role="heading" aria-level={2} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <HiTrophy style={{ color: '#fbbf24' }} />
-          게임 결과
+    <div className="result-container">
+      {/* 승리 배너 */}
+      <div className="winner-banner">
+        <div className="winner-crown">
+          <HiTrophy style={{ fontSize: '2.5rem', color: '#fbbf24' }} />
+        </div>
+        <h1 className="winner-title">
+          🎉 {winner.nickname} 승리!
+        </h1>
+        <div className="winner-score">
+          <HiStar style={{ fontSize: '1.2rem' }} />
+          <span>최종 점수: {winner.score}점</span>
         </div>
       </div>
-      <div className="panel">
-        <div className="players" role="table" aria-label="결과 표">
-          {results.map((res) => (
-            <div key={res.nickname} className="player" role="row">
-              <div className="name" role="columnheader" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {res.rank === 1 ? (
-                    <HiTrophy style={{ color: '#fbbf24', fontSize: '1.2em' }} />
-                  ) : res.rank <= 3 ? (
-                    <RiMedalLine style={{ color: res.rank === 2 ? '#9ca3af' : '#d97706', fontSize: '1.2em' }} />
+
+      {/* 순위표 */}
+      <div className="results-panel">
+        <div className="results-header">
+          <h2>🏆 최종 순위</h2>
+          <div className="results-subtitle">{totalPlayers}명 참여</div>
+        </div>
+        
+        <div className="results-list">
+          {results.map((player, index) => {
+            const performanceLevel = getPerformanceLevel(player.rank, totalPlayers);
+            const PerformanceIcon = getPerformanceIcon(performanceLevel);
+            const performanceColor = getPerformanceColor(performanceLevel);
+            
+            return (
+              <div 
+                key={player.nickname} 
+                className={`result-card ${player.rank === 1 ? 'winner-card' : ''}`}
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                {/* 순위 표시 */}
+                <div className="rank-indicator">
+                  {player.rank === 1 ? (
+                    <div className="first-place">
+                      <HiTrophy style={{ color: '#fbbf24', fontSize: '1.8rem' }} />
+                    </div>
+                  ) : player.rank === 2 ? (
+                    <div className="second-place">
+                      <RiMedalLine style={{ color: '#c0c0c0', fontSize: '1.5rem' }} />
+                    </div>
+                  ) : player.rank === 3 ? (
+                    <div className="third-place">
+                      <RiMedalLine style={{ color: '#cd7f32', fontSize: '1.5rem' }} />
+                    </div>
                   ) : (
-                    <span style={{ fontSize: '1.1em', fontWeight: 'bold', color: 'var(--muted)', minWidth: '20px' }}>{res.rank}.</span>
+                    <div className="other-rank">
+                      <span className="rank-number">{player.rank}</span>
+                    </div>
                   )}
-                  <span style={{ fontWeight: res.rank <= 3 ? '700' : '600' }}>{res.nickname}</span>
                 </div>
-                <div className="score-display" style={{
-                  background: res.rank === 1 
-                    ? 'linear-gradient(135deg, #fbbf24, #f59e0b)' 
-                    : 'linear-gradient(135deg, #e5e7eb, #d1d5db)',
-                  color: res.rank === 1 ? 'white' : 'var(--text)',
-                  padding: '4px 10px',
-                  borderRadius: '12px',
-                  fontSize: '0.9em',
-                  fontWeight: '700',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4
-                }}>
-                  <HiMiniSparkles style={{ fontSize: '0.9em' }} />
-                  {res.score}
+
+                {/* 플레이어 정보 */}
+                <div className="player-info">
+                  <div className="player-name">
+                    {player.nickname}
+                    {player.rank === 1 && (
+                      <span className="winner-badge">승리</span>
+                    )}
+                  </div>
+                  
+                  <div className="player-stats">
+                    <div className="score-stat">
+                      <span className="stat-label">점수</span>
+                      <span className="stat-value score-value">{player.score}</span>
+                    </div>
+                    
+                    <div className="token-stat">
+                      <RiCoinLine style={{ color: 'var(--chip)' }} />
+                      <span className="stat-value">{player.tokens}</span>
+                    </div>
+                    
+                    <div className="performance-stat">
+                      <PerformanceIcon style={{ color: performanceColor, fontSize: '1.1rem' }} />
+                    </div>
+                  </div>
                 </div>
+
+                {/* 획득 카드 */}
+                {player.cards.length > 0 && (
+                  <div className="player-cards">
+                    <div className="cards-grid">
+                      {player.cards
+                        .sort((a, b) => a - b)
+                        .slice(0, 8) // 최대 8개만 표시
+                        .map((card) => (
+                          <span key={card} className="result-card-tag">{card}</span>
+                        ))}
+                      {player.cards.length > 8 && (
+                        <span className="more-cards">+{player.cards.length - 8}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="tokens" style={{ marginTop: 6 }}>
-                <RiCoinLine style={{ color: 'var(--chip)', fontSize: '1.1em' }} aria-hidden />
-                <span>{res.tokens}</span>
-              </div>
-              {res.cards.length > 0 && (
-                <div className="my-cards" aria-label="획득 카드">
-                  {res.cards.sort((a, b) => a - b).map((c) => (
-                    <span key={c} className="tag">{c}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
-        <div className="controls" style={{ marginTop: 8 }}>
-          <button 
-            onClick={onRestart} 
-            className="btn primary" 
-            aria-label="다시 플레이"
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 8, 
-              justifyContent: 'center',
-              width: '100%'
-            }}
-          >
-            <HiArrowPath style={{ fontSize: '1.1em' }} />
-            다시 플레이
-          </button>
-        </div>
+      </div>
+
+      {/* 액션 버튼들 */}
+      <div className="result-actions">
+        <button 
+          onClick={onRestart} 
+          className="restart-btn"
+          aria-label="다시 플레이"
+        >
+          <HiArrowPath style={{ fontSize: '1.2rem' }} />
+          <span>다시 플레이</span>
+          <HiChevronRight style={{ fontSize: '1rem', opacity: 0.7 }} />
+        </button>
       </div>
     </div>
   );

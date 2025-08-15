@@ -5,7 +5,9 @@ import {
   HiOutlineXCircle, 
   HiOutlineClock,
   HiOutlineSparkles,
-  HiChevronRight
+  HiChevronRight,
+  HiPlus,
+  HiMinus
 } from 'react-icons/hi2';
 import { RiCoinLine } from 'react-icons/ri';
 
@@ -50,6 +52,31 @@ const GamePage: React.FC = () => {
   const [takeAnimKey, setTakeAnimKey] = useState(0);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [selectedBotDifficulty, setSelectedBotDifficulty] = useState<string>('medium');
+  
+  // 게임 설정 입력 검증 상태
+  const [inputErrors, setInputErrors] = useState<{[key: string]: string}>({});
+  const [inputValues, setInputValues] = useState<{[key: string]: string}>({});
+
+  // 입력값 검증 함수
+  const validateAndUpdate = (field: string, value: number, min: number, max: number, fieldName: string) => {
+    let error = '';
+    
+    if (isNaN(value) || value < min || value > max) {
+      error = `${fieldName}은(는) ${min}~${max} 범위 내에서 입력해주세요.`;
+    }
+    
+    setInputErrors(prev => ({ ...prev, [field]: error }));
+    
+    if (!error) {
+      updateSettings({ [field]: value });
+    }
+  };
+
+  // +/- 버튼으로 값 조정
+  const adjustValue = (field: string, currentValue: number, delta: number, min: number, max: number) => {
+    const newValue = Math.max(min, Math.min(max, currentValue + delta));
+    updateSettings({ [field]: newValue });
+  };
 
   // 현재 설정을 가져옴 (서버에서 받은 설정 사용) - Hook 순서 보장을 위해 최상단에 선언
   const settings = state?.gameSettings;
@@ -155,40 +182,100 @@ const GamePage: React.FC = () => {
           <div className="row two" style={{ marginTop: 8 }}>
             <div className="field">
               <label className="field-label" htmlFor="removed">제거할 카드 수</label>
-              <input
-                id="removed"
-                type="number"
-                inputMode="numeric"
-                min={1}
-                max={32}
-                value={settings.removedCount}
-                onChange={(e) => {
-                  const value = Math.max(1, Math.min(32, Number(e.target.value) || 1));
-                  updateSettings({ removedCount: value });
-                }}
-                aria-label="제거할 카드 수 (1–32)"
-                className="input"
-                disabled={!isHost}
-              />
+              <div className="input-with-controls">
+                <button
+                  type="button"
+                  className="btn sm input-control-btn"
+                  onClick={() => adjustValue('removedCount', settings.removedCount, -1, 1, 32)}
+                  disabled={!isHost || settings.removedCount <= 1}
+                  aria-label="제거할 카드 수 감소"
+                >
+                  <HiMinus />
+                </button>
+                <input
+                  id="removed"
+                  type="number"
+                  inputMode="numeric"
+                  value={settings.removedCount}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    if (e.target.value === '') {
+                      return; // 빈 값은 허용 (사용자가 입력 중)
+                    }
+                    validateAndUpdate('removedCount', value, 1, 32, '제거할 카드 수');
+                  }}
+                  onBlur={(e) => {
+                    // 포커스 잃을 때 빈 값이면 기본값으로
+                    if (e.target.value === '') {
+                      updateSettings({ removedCount: 9 });
+                    }
+                  }}
+                  aria-label="제거할 카드 수 (1–32)"
+                  className={`input ${inputErrors.removedCount ? 'input-error' : ''}`}
+                  disabled={!isHost}
+                />
+                <button
+                  type="button"
+                  className="btn sm input-control-btn"
+                  onClick={() => adjustValue('removedCount', settings.removedCount, 1, 1, 32)}
+                  disabled={!isHost || settings.removedCount >= 32}
+                  aria-label="제거할 카드 수 증가"
+                >
+                  <HiPlus />
+                </button>
+              </div>
+              {inputErrors.removedCount && (
+                <div className="error-message">{inputErrors.removedCount}</div>
+              )}
               <div className="help">3–35 중 무작위로 제거되는 카드 개수 (기본 9)</div>
             </div>
             <div className="field">
               <label className="field-label" htmlFor="tokens">초기 토큰 수</label>
-              <input
-                id="tokens"
-                type="number"
-                inputMode="numeric"
-                min={1}
-                max={50}
-                value={settings.initialTokens}
-                onChange={(e) => {
-                  const value = Math.max(1, Math.min(50, Number(e.target.value) || 1));
-                  updateSettings({ initialTokens: value });
-                }}
-                aria-label="초기 토큰 수 (1–50)"
-                className="input"
-                disabled={!isHost}
-              />
+              <div className="input-with-controls">
+                <button
+                  type="button"
+                  className="btn sm input-control-btn"
+                  onClick={() => adjustValue('initialTokens', settings.initialTokens, -1, 1, 50)}
+                  disabled={!isHost || settings.initialTokens <= 1}
+                  aria-label="초기 토큰 수 감소"
+                >
+                  <HiMinus />
+                </button>
+                <input
+                  id="tokens"
+                  type="number"
+                  inputMode="numeric"
+                  value={settings.initialTokens}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    if (e.target.value === '') {
+                      return; // 빈 값은 허용 (사용자가 입력 중)
+                    }
+                    validateAndUpdate('initialTokens', value, 1, 50, '초기 토큰 수');
+                  }}
+                  onBlur={(e) => {
+                    // 포커스 잃을 때 빈 값이면 기본값으로
+                    if (e.target.value === '') {
+                      updateSettings({ initialTokens: 11 });
+                    }
+                  }}
+                  aria-label="초기 토큰 수 (1–50)"
+                  className={`input ${inputErrors.initialTokens ? 'input-error' : ''}`}
+                  disabled={!isHost}
+                />
+                <button
+                  type="button"
+                  className="btn sm input-control-btn"
+                  onClick={() => adjustValue('initialTokens', settings.initialTokens, 1, 1, 50)}
+                  disabled={!isHost || settings.initialTokens >= 50}
+                  aria-label="초기 토큰 수 증가"
+                >
+                  <HiPlus />
+                </button>
+              </div>
+              {inputErrors.initialTokens && (
+                <div className="error-message">{inputErrors.initialTokens}</div>
+              )}
               <div className="help">각 플레이어가 시작 시 보유하는 토큰 수 (기본 11)</div>
             </div>
             <div className="field">
