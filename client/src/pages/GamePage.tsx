@@ -5,9 +5,7 @@ import {
   HiOutlineXCircle, 
   HiOutlineClock,
   HiOutlineSparkles,
-  HiChevronRight,
-  HiPlus,
-  HiMinus
+  HiChevronRight
 } from 'react-icons/hi2';
 import { RiCoinLine } from 'react-icons/ri';
 
@@ -190,7 +188,7 @@ const GamePage: React.FC = () => {
                   disabled={!isHost || settings.removedCount <= 1}
                   aria-label="제거할 카드 수 감소"
                 >
-                  <HiMinus />
+                  −
                 </button>
                 <input
                   id="removed"
@@ -221,7 +219,7 @@ const GamePage: React.FC = () => {
                   disabled={!isHost || settings.removedCount >= 32}
                   aria-label="제거할 카드 수 증가"
                 >
-                  <HiPlus />
+                  +
                 </button>
               </div>
               {inputErrors.removedCount && (
@@ -239,7 +237,7 @@ const GamePage: React.FC = () => {
                   disabled={!isHost || settings.initialTokens <= 1}
                   aria-label="초기 토큰 수 감소"
                 >
-                  <HiMinus />
+                  −
                 </button>
                 <input
                   id="tokens"
@@ -270,7 +268,7 @@ const GamePage: React.FC = () => {
                   disabled={!isHost || settings.initialTokens >= 50}
                   aria-label="초기 토큰 수 증가"
                 >
-                  <HiPlus />
+                  +
                 </button>
               </div>
               {inputErrors.initialTokens && (

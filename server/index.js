@@ -62,16 +62,16 @@ function handleBotTurn() {
   if (!currentPlayer || !currentPlayer.isBot) return;
 
   // 봇에게 딜레이 부여 (난이도별 차별화)
-  let baseDelay = 500;  // 중급: 0.5초 기본
+  let baseDelay = 800;   // 중급: 0.8초 기본 (인간다운 사고시간)
   let randomDelay = 2000; // 중급: +0~2초 랜덤
   
   // 난이도별 사고 시간 차별화
   if (currentPlayer.difficulty === 'expert') {
-    baseDelay = 500;   // 최상급: 0.5초 기본
-    randomDelay = 3000; // 최상급: +0~3초 랜덤
+    baseDelay = 1000;   // 최상급: 1초 기본 (더 많이 고민)
+    randomDelay = 3500; // 최상급: +0~3.5초 랜덤
   } else if (currentPlayer.difficulty === 'hard') {
-    baseDelay = 500;   // 상급: 0.5초 기본
-    randomDelay = 2500; // 상급: +0~2.5초 랜덤
+    baseDelay = 900;    // 상급: 0.9초 기본
+    randomDelay = 2800; // 상급: +0~2.8초 랜덤
   }
   
   const delay = baseDelay + Math.random() * randomDelay;
@@ -85,9 +85,22 @@ function handleBotTurn() {
     
     let result;
     if (action === 'take') {
+      const cardTaken = game.currentCard;
+      const tokensTaken = game.pileTokens;
       result = game.takeCard(currentPlayer.id);
+      
+      // AI가 카드를 가져갔을 때 다른 AI들에게 이벤트 알림
+      notifyBotsOfCardTaken(currentPlayer, cardTaken, tokensTaken);
+      
+      // 모든 봇들이 이 행동을 관찰하도록 업데이트
+      notifyBotsOfPlayerAction(currentPlayer.id, 'take', cardTaken, tokensTaken);
     } else {
+      const cardPassed = game.currentCard;
+      const tokensOnCard = game.pileTokens;
       result = game.pass(currentPlayer.id);
+      
+      // 모든 봇들이 이 행동을 관찰하도록 업데이트
+      notifyBotsOfPlayerAction(currentPlayer.id, 'pass', cardPassed, tokensOnCard);
     }
 
     if (result && result.gameOver) {
@@ -117,12 +130,131 @@ function startNextTurn() {
 }
 
 /**
+ * AI 봇들에게 카드 취득 이벤트 알림
+ */
+function notifyBotsOfCardTaken(takerBot, cardNumber, tokensGained) {
+  game.players.forEach(player => {
+    if (player.isBot && player.id !== takerBot.id) {
+      // 다른 AI 봇들이 이 카드를 원했는지 확인
+      const wouldWantCard = player.wouldPlayerWantCard ? 
+        player.wouldPlayerWantCard(takerBot, cardNumber) : 
+        player.cards.some(card => Math.abs(card - cardNumber) <= 2);
+      
+      if (wouldWantCard) {
+        // 내가 원하던 카드를 다른 봇이 가져갔을 때 감정 반응
+        player.reactToEvent('someone_took_my_card', {
+          playerId: takerBot.id,
+          playerName: takerBot.nickname,
+          card: cardNumber,
+          tokens: tokensGained
+        });
+      }
+    }
+  });
+}
+
+/**
+ * AI 봇들에게 순위 변동 알림
+ */
+function notifyBotsOfRankingChange() {
+  if (!game.started) return;
+  
+  // 현재 순위 계산
+  const currentRankings = game.players.map(p => ({
+    id: p.id,
+    nickname: p.nickname,
+    score: calculatePlayerScore(p),
+    isBot: p.isBot
+  })).sort((a, b) => a.score - b.score);
+  
+  // 각 봇에게 순위 변동 알림
+  game.players.forEach(player => {
+    if (!player.isBot) return;
+    
+    const myRank = currentRankings.findIndex(r => r.id === player.id) + 1;
+    const isLeading = myRank === 1;
+    const wasOvertaken = myRank > 1 && currentRankings.slice(0, myRank - 1).some(r => !r.isBot);
+    
+    if (wasOvertaken) {
+      player.reactToEvent('got_overtaken', { 
+        currentRank: myRank,
+        totalPlayers: currentRankings.length
+      });
+    } else if (isLeading && Math.random() < 0.3) {
+      player.reactToEvent('winning_streak', {
+        currentRank: myRank
+      });
+    }
+  });
+}
+
+/**
+ * 플레이어 점수 계산 헬퍼
+ */
+function calculatePlayerScore(player) {
+  if (!player.cards || player.cards.length === 0) return 0;
+  
+  const sorted = [...player.cards].sort((a, b) => a - b);
+  let sum = 0;
+  let prev = null;
+  
+  sorted.forEach((card) => {
+    if (prev == null || card !== prev + 1) {
+      sum += card;
+    }
+    prev = card;
+  });
+  
+  return sum - player.tokens;
+}
+
+/**
+ * 모든 봇들에게 플레이어 행동 관찰 알림
+ */
+function notifyBotsOfPlayerAction(playerId, action, card, tokens) {
+  game.players.forEach(bot => {
+    if (bot.isBot && bot.id !== playerId && bot.observePlayerAction) {
+      bot.observePlayerAction(playerId, action, card, tokens);
+    }
+  });
+}
+
+/**
+ * AI 봇들의 연속 실패/성공 체크
+ */
+function checkBotsConsecutiveResults() {
+  game.players.forEach(player => {
+    if (!player.isBot || !player.gameEvents) return;
+    
+    const recentDecisions = player.gameEvents.slice(-3);
+    if (recentDecisions.length >= 3) {
+      const allBadDeals = recentDecisions.every(event => 
+        event.type === 'decision' && event.myDecision === 'take' && 
+        (event.tokens || 0) < event.card * 0.3
+      );
+      
+      if (allBadDeals) {
+        player.reactToEvent('consecutive_bad_cards', {
+          recentCards: recentDecisions.map(e => e.card)
+        });
+      }
+    }
+  });
+}
+
+/**
  * Helper function to broadcast the current game state to all
  * connected clients.
  */
 function broadcastState() {
     const state = game.getState();
     io.emit('gameState', state);
+    
+    // 상태 브로드캐스트 후 AI 봇들에게 순위 변동 알림
+    if (game.started) {
+      notifyBotsOfRankingChange();
+      checkBotsConsecutiveResults();
+    }
 }
 
 /**
@@ -217,6 +349,8 @@ io.on('connection', (socket) => {
    * has no tokens.
    */
   socket.on('pass', () => {
+    const cardPassed = game.currentCard;
+    const tokensOnCard = game.pileTokens;
     const result = game.pass(socket.id);
     if (result && result.error) {
       socket.emit('gameError', { message: result.error });
@@ -226,6 +360,10 @@ io.on('connection', (socket) => {
       }
       return;
     }
+    
+    // 봇들이 인간 플레이어의 패스 행동을 관찰하도록 업데이트
+    notifyBotsOfPlayerAction(socket.id, 'pass', cardPassed, tokensOnCard);
+    
     if (result.gameOver) {
       const scores = game.calculateScores();
       handleGameEnd(scores);
@@ -240,11 +378,24 @@ io.on('connection', (socket) => {
    * Player chooses to take the current card on their turn.
    */
   socket.on('take', () => {
+    const takenCard = game.currentCard;
+    const takenTokens = game.pileTokens;
     const result = game.takeCard(socket.id);
+    
     if (result && result.error) {
       socket.emit('gameError', { message: result.error });
       return;
     }
+    
+    // 인간 플레이어가 카드를 가져갔을 때 AI들에게 알림
+    const humanPlayer = game.players.find(p => p.id === socket.id);
+    if (humanPlayer && !humanPlayer.isBot) {
+      notifyBotsOfCardTaken(humanPlayer, takenCard, takenTokens);
+      
+      // 봇들이 인간 플레이어의 테이크 행동을 관찰하도록 업데이트
+      notifyBotsOfPlayerAction(socket.id, 'take', takenCard, takenTokens);
+    }
+    
     if (result.gameOver) {
       const scores = game.calculateScores();
       handleGameEnd(scores);

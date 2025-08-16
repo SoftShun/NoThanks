@@ -1,1024 +1,1203 @@
 /*
- * AI 봇 시스템 for No Thanks! 게임 - 완전히 재설계된 버전
+ * AI 봇 시스템 for No Thanks! 게임 - 완전 재설계 버전
  * 
- * 핵심 전략에 집중하여 실제로 승리할 수 있는 AI 구현
- * 복잡한 수학적 모델 대신 실증적 전략 활용
+ * 핵심 개념: 감정 기반 인간다운 AI
+ * - 복잡한 계산 대신 감정과 직감 중심
+ * - 실시간으로 변화하는 성격과 관계
+ * - 플레이어가 체감할 수 있는 명확한 차이
  */
 
 class Bot {
   constructor(id, nickname, difficulty = 'medium') {
     this.id = id;
     this.nickname = nickname;
-    this.difficulty = difficulty; // 'medium', 'hard', 'expert'
+    this.difficulty = difficulty;
     this.tokens = 0;
     this.cards = [];
     this.isBot = true;
     
-    // 인간다운 성격 시스템 - 동적 변화 가능
-    this.basePersonality = Math.random(); // 기본 성격 (변하지 않음)
-    this.playVariation = this.basePersonality; // 현재 성격 (게임 중 변화)
-    this.gameMemory = []; // 게임 기록 및 학습
-    this.personalityShifts = []; // 성격 변화 기록
-    this.recentExperiences = []; // 최근 경험들 (성격 변화의 원인)
+    // === 핵심: 감정 상태 시스템 ===
+    this.emotionalState = {
+      mood: Math.random() * 0.4 + 0.3,        // 0.3~0.7 (시작시 중간 정도)
+      confidence: Math.random() * 0.4 + 0.3,   // 자신감
+      competitiveness: Math.random() * 0.6 + 0.2, // 승부욕
+      frustration: 0,                           // 좌절감 (시작시 0)
+      greed: Math.random() * 0.4 + 0.3,       // 욕심
+      vengeful: 0                               // 복수심 (시작시 0)
+    };
     
-    // 성격 분석
-    const personality = this.analyzePersonality();
-    console.log(`🤖 ${this.nickname} [${this.difficulty}] 생성됨:`);
-    console.log(`   성격: ${personality.type} (${personality.description})`);
-    console.log(`   특징: ${personality.traits.join(', ')}`);
-    console.log(`   플레이 스타일: ${personality.playStyle}`);
+    // === 플레이어 관계 및 학습 시스템 ===
+    this.playerRelations = {}; // { playerId: { rivalry, trust, pattern } }
+    this.gameEvents = [];      // 최근 중요 이벤트들
+    this.personalityMemory = []; // 성격 변화 기록
+    
+    // === 난이도별 기본 성향 ===
+    this.baseTendency = this.initializeTendency(difficulty);
+    
+    console.log(`🤖 ${this.nickname} [${this.difficulty}] 생성됨!`);
+    console.log(`   감정 상태: 기분 ${this.emotionalState.mood.toFixed(2)}, 자신감 ${this.emotionalState.confidence.toFixed(2)}, 승부욕 ${this.emotionalState.competitiveness.toFixed(2)}`);
+    console.log(`   성향: ${this.baseTendency.description}`);
   }
   
   /**
-   * AI의 성격 분석 (인간적 개성 부여)
+   * 난이도별 기본 성향 초기화
    */
-  analyzePersonality() {
-    const variation = this.playVariation;
-    
-    let type = "";
-    let description = "";
-    let traits = [];
-    let playStyle = "";
-    
-    if (variation < 0.2) {
-      type = "초보수형";
-      description = "안전을 최우선으로 하는 신중한 플레이어";
-      traits = ["신중함", "위험회피", "계산적"];
-      playStyle = "확실한 것만 가져가고, 리스크를 최소화";
-    } else if (variation < 0.4) {
-      type = "분석형";
-      description = "모든 것을 꼼꼼히 계산하는 논리적 플레이어";
-      traits = ["논리적", "체계적", "합리적"];
-      playStyle = "데이터와 확률에 기반한 최적화된 판단";
-    } else if (variation < 0.6) {
-      type = "균형형";
-      description = "상황에 맞게 유연하게 대응하는 플레이어";
-      traits = ["유연함", "적응력", "균형감"];
-      playStyle = "상황에 따라 공격적/보수적 전환";
-    } else if (variation < 0.8) {
-      type = "공격형";
-      description = "위험을 감수하며 큰 이익을 노리는 플레이어";
-      traits = ["대담함", "욕심", "모험적"];
-      playStyle = "높은 리스크, 높은 리턴을 추구";
-    } else {
-      type = "변덕형";
-      description = "예측 불가능한 창의적 플레이어";
-      traits = ["창의적", "예측불가", "직관적"];
-      playStyle = "상식을 뛰어넘는 기상천외한 판단";
+  initializeTendency(difficulty) {
+    switch (difficulty) {
+      case 'medium':
+        return {
+          description: "일반적이고 예측 가능한 플레이어",
+          riskTolerance: 0.5,
+          emotionalIntensity: 0.3, // 감정 변화가 적음
+          learningRate: 0.1,       // 학습 속도 느림
+          randomness: 0.15         // 약간의 무작위성
+        };
+      case 'hard':
+        return {
+          description: "감정적이고 경쟁적인 플레이어", 
+          riskTolerance: 0.7,
+          emotionalIntensity: 0.6, // 감정 변화가 큼
+          learningRate: 0.3,       // 학습 속도 보통
+          randomness: 0.25         // 상당한 무작위성
+        };
+      case 'expert':
+        return {
+          description: "예측 불가능하고 전략적인 플레이어",
+          riskTolerance: 0.8,
+          emotionalIntensity: 0.8, // 극도의 감정 변화
+          learningRate: 0.5,       // 빠른 학습
+          randomness: 0.35         // 높은 무작위성
+        };
+      default:
+        return this.initializeTendency('medium');
     }
-    
-    return { type, description, traits, playStyle };
   }
 
   /**
-   * 현재 상황에서 최선의 액션을 결정합니다.
-   * 고급 전략 기반 정교한 의사결정 시스템
+   * 메인 의사결정 시스템 - 안전한 에러 처리 포함
    */
   makeDecision(gameState) {
-    const { currentCard, pileTokens, players, deckSize, removedCount } = gameState;
-    
-    // === 게임 컨텍스트 구성 ===
-    const gameContext = {
-      currentCard,
-      pileTokens,
-      players,
-      gamePhase: this.determineGamePhase(players),
-      resourceSituation: this.analyzeResourceSituation(),
-      deckSize,
-      removedCount
-    };
-    
-    // === 핵심 전략 분석 ===
-    // 1. 연속 카드 우선순위 분석 (고급 버전 - 전략적 지연 포함)
-    const chainValue = this.evaluateChainOpportunity(currentCard, gameContext);
-    
-    // 2. 자원 상황 인지 (Resource Awareness)  
-    const resourceSituation = gameContext.resourceSituation;
-    
-    // 3. 지능적 칩 파밍 분석 (Smart Chip Farming)
-    const farmingOpportunity = this.evaluateChipFarmingOpportunity(currentCard, pileTokens, players);
-    
-    // 4. 상대방 전략 분석 (Opponent Analysis)
-    const opponentThreats = this.analyzeOpponentThreats(currentCard, players);
-    
-    // 5. 상대방 행동 예측 (Opponent Behavior Prediction)
-    const opponentPrediction = this.predictOpponentBehavior(currentCard, players, gameContext);
-    
-    // 6. 지연 만족 vs 즉시 만족 분석 (Delayed Gratification Analysis)
-    const delayedGratification = this.evaluateDelayedGratification(currentCard, pileTokens, opponentPrediction, chainValue);
-    
-    // 7. 다턴 기대값 분석 (Multi-turn Expected Value)
-    const multiTurnValue = this.calculateMultiTurnExpectedValue(currentCard, gameContext, opponentPrediction);
-    
-    // 난이도별 고급 의사결정
-    return this.makeAdvancedStrategicDecision({
-      currentCard,
-      pileTokens,
-      chainValue,
-      resourceSituation,
-      farmingOpportunity,
-      opponentThreats,
-      opponentPrediction,
-      delayedGratification,
-      multiTurnValue,
-      gamePhase: gameContext.gamePhase,
-      players,
-      gameContext
-    });
+    try {
+      const { currentCard, pileTokens, players } = gameState;
+      
+      // 입력 유효성 검사
+      if (typeof currentCard !== 'number' || typeof pileTokens !== 'number' || !Array.isArray(players)) {
+        console.error(`⚠️ ${this.nickname}: 잘못된 게임 상태 데이터`);
+        return 'pass'; // 안전한 기본값
+      }
+      
+      console.log(`\n🧠 ${this.nickname} [${this.difficulty}] 의사결정 시작:`);
+      console.log(`   카드: ${currentCard}, 칩: ${pileTokens}, 내 토큰: ${this.tokens}`);
+      
+      // 1. 기본 전략적 판단 (30%)
+      const basicDecision = this.makeBasicDecision(currentCard, pileTokens, gameState);
+      console.log(`   기본 판단: ${basicDecision.action} (이유: ${basicDecision.reason})`);
+      
+      // 2. 감정 상태 적용 (40%) - 전략 시스템과 통합
+      const emotionalDecision = this.applyEmotionalFactors(basicDecision, currentCard, pileTokens, players, gameState);
+      console.log(`   감정 조정: ${emotionalDecision.action} (${emotionalDecision.emotionalReason})`);
+      
+      // 3. 플레이어 관계 고려 (20%) - 전략 시스템과 통합
+      const socialDecision = this.considerPlayerRelations(emotionalDecision, currentCard, players, gameState);
+      console.log(`   관계 고려: ${socialDecision.action} (${socialDecision.socialReason})`);
+      
+      // 4. 최종 무작위 요소 (제한적)
+      const finalDecision = this.addFinalRandomness(socialDecision, currentCard, pileTokens);
+      console.log(`   최종 결정: ${finalDecision} 🎯\n`);
+      
+      // 5. 결정 후 감정 변화 및 학습
+      this.updateEmotionsAfterDecision(finalDecision, currentCard, pileTokens);
+      this.learnFromSituation(currentCard, pileTokens, players, finalDecision);
+      
+      // 최종 유효성 검사
+      if (finalDecision !== 'take' && finalDecision !== 'pass') {
+        console.error(`⚠️ ${this.nickname}: 잘못된 결정값 "${finalDecision}", 패스로 대체`);
+        return 'pass';
+      }
+      
+      return finalDecision;
+      
+    } catch (error) {
+      console.error(`🚨 ${this.nickname}: 의사결정 중 오류 발생:`, error.message);
+      // 토큰이 있으면 패스, 없으면 테이크 (안전한 폴백)
+      return this.tokens > 0 ? 'pass' : 'take';
+    }
   }
 
   /**
-   * 1. 연속 카드 우선순위 평가 (Chain Priority System) - 고급 버전
-   * 기존 카드와 연결되는 카드에 최고 우선순위를 부여하지만, 전략적 지연도 고려
+   * 1단계: 동적 전략 기반 판단 - 상황에 따른 유연한 전략 선택
    */
-  evaluateChainOpportunity(currentCard, gameContext = null) {
-    if (!this.cards || this.cards.length === 0) return { value: 0, type: 'none', strategicDelay: false };
-    
-    let chainValue = 0;
-    let bestChainType = 'none';
-    let connectedCards = [];
-    
-    // 기존 카드와의 인접성 체크 및 연결된 카드 추적
-    for (const ownCard of this.cards) {
-      const distance = Math.abs(ownCard - currentCard);
-      
-      // 직접 인접 (가장 가치 높음)
-      if (distance === 1) {
-        chainValue += 100;
-        bestChainType = 'direct';
-        connectedCards.push(ownCard);
-      }
-      // 1칸 간격 (높은 가치)
-      else if (distance === 2) {
-        chainValue += 60;
-        if (bestChainType === 'none') bestChainType = 'gap1';
-        connectedCards.push(ownCard);
-      }
-      // 2칸 간격 (중간 가치)
-      else if (distance === 3) {
-        chainValue += 30;
-        if (bestChainType === 'none') bestChainType = 'gap2';
-      }
+  makeBasicDecision(currentCard, pileTokens, gameState) {
+    // 토큰 부족시 강제 취득
+    if (this.tokens <= 0) {
+      return { action: 'take', reason: '토큰 없음' };
     }
     
-    // 전략적 지연 가능성 평가 (직접 연결이어도 기다릴 가치가 있는지)
-    let strategicDelay = false;
-    if (bestChainType === 'direct' && gameContext) {
-      strategicDelay = this.shouldDelayDirectConnection(currentCard, connectedCards, gameContext);
-    }
+    // 실제 손실 계산
+    const realCost = this.calculateRealCost(currentCard, pileTokens);
+    console.log(`   💰 실제 손실 계산: ${currentCard}점 카드 - ${this.getConnectionBonus(currentCard).toFixed(1)}연결보너스 - ${pileTokens}칩 = ${realCost.toFixed(1)}점 손실`);
     
-    return { 
-      value: chainValue, 
-      type: bestChainType, 
-      connectedCards,
-      strategicDelay
-    };
+    // 게임 상황 분석
+    const situation = this.analyzeGameSituation(gameState);
+    
+    // 동적 전략 선택
+    const strategy = this.selectStrategy(situation, currentCard, pileTokens, realCost);
+    console.log(`   🎯 선택된 전략: ${strategy.name} (${strategy.description})`);
+    
+    // 전략에 따른 의사결정
+    const decision = this.executeStrategy(strategy, currentCard, pileTokens, realCost, situation);
+    console.log(`   ⚖️ 전략적 판단: ${decision.action} (${decision.reason})`);
+    
+    return decision;
   }
   
   /**
-   * 2. 자원 상황 인지 (Resource Awareness)
-   * 내 토큰과 점수 상황을 정확히 파악
+   * 상황에 맞는 최적 전략 선택
    */
-  analyzeResourceSituation() {
-    const myTokens = this.tokens;
-    const myScore = this.calculateCurrentScore();
-    
-    return {
-      hasTokens: myTokens > 0,
-      tokenCount: myTokens,
-      isTokenPoor: myTokens <= 2, // 토큰 부족 상태
-      isTokenRich: myTokens >= 8,  // 토큰 풍부 상태
-      currentScore: myScore,
-      riskCapacity: myTokens >= 5 ? 'high' : myTokens >= 3 ? 'medium' : 'low'
-    };
-  }
-  
-  /**
-   * 3. 지능적 칩 파밍 평가 (Smart Chip Farming)
-   * 다른 플레이어가 싫어하는 카드를 돌려서 칩 축적
-   */
-  evaluateChipFarmingOpportunity(currentCard, pileTokens, players) {
-    let farmingValue = 0;
-    
-    // 높은 카드일수록 다른 플레이어가 가져가기 싫어함
-    if (currentCard >= 30) farmingValue += 40;
-    else if (currentCard >= 25) farmingValue += 25;
-    else if (currentCard >= 20) farmingValue += 10;
-    
-    // 이미 쌓인 토큰이 많을수록 파밍 가치 상승
-    farmingValue += pileTokens * 5;
-    
-    // 다른 플레이어들의 필요도 분석
-    const opponentNeedLevel = this.analyzeOpponentNeedForCard(currentCard, players);
-    if (opponentNeedLevel === 'none') farmingValue += 30; // 아무도 원하지 않으면 파밍 기회
-    
-    return farmingValue;
-  }
-  
-  /**
-   * 4. 상대방 위협 분석 (Opponent Threat Analysis)
-   */
-  analyzeOpponentThreats(currentCard, players) {
-    let maxThreat = 0;
-    let threats = [];
-    
-    for (const player of players) {
-      if (player.id === this.id) continue;
-      
-      const playerCards = player.cards || [];
-      let threatLevel = 0;
-      
-      // 상대방이 이 카드로 연속성을 만들 수 있는지 확인
-      for (const opponentCard of playerCards) {
-        if (Math.abs(opponentCard - currentCard) === 1) {
-          threatLevel += 50; // 직접 연결 가능
-        } else if (Math.abs(opponentCard - currentCard) === 2) {
-          threatLevel += 25; // 간접 연결 가능
-        }
+  selectStrategy(situation, currentCard, pileTokens, realCost) {
+    try {
+      // 입력 유효성 검사
+      if (!situation || typeof currentCard !== 'number' || typeof pileTokens !== 'number') {
+        console.error(`⚠️ ${this.nickname}: selectStrategy - 잘못된 입력값`);
+        return this.getDefaultStrategy();
       }
       
-      if (threatLevel > maxThreat) maxThreat = threatLevel;
-      threats.push({ playerId: player.id, level: threatLevel });
-    }
+      const { gameProgress, myRank, pointsFromLead, pointsFromLast, tokenAdvantage, 
+              isLeading, isLastPlace, isCloseGame, remainingCardsRisk, opponentAnalysis } = situation;
     
-    return { maxThreat, threats };
-  }
-  
-  /**
-   * 5. 게임 단계 결정 (Game Phase Determination)
-   */
-  determineGamePhase(players) {
-    const totalCards = players.reduce((sum, p) => sum + (p.cards ? p.cards.length : 0), 0);
-    
-    if (totalCards < 8) return 'early';      // 초반: 칩 축적
-    else if (totalCards < 18) return 'mid';   // 중반: 전략적 취득
-    else return 'late';                      // 후반: 점수 최소화
-  }
-
-  /**
-   * 6. 고급 전략적 의사결정 (Advanced Strategic Decision Making)
-   * 모든 요소를 종합하여 최종 결정 - 직접 연결도 전략적 패스 가능
-   */
-  makeAdvancedStrategicDecision(analysis) {
-    // 난이도별 고급 전략
-    switch (this.difficulty) {
-      case 'medium':
-        return this.advancedMediumStrategy(analysis);
-      case 'hard':
-        return this.advancedHardStrategy(analysis);
-      case 'expert':
-        return this.advancedExpertStrategy(analysis);
-      default:
-        return this.advancedMediumStrategy(analysis);
-    }
-  }
-  
-  /**
-   * 중급 전략: 유연하고 사람다운 판단 - 플레이어 수 동적 적응
-   */
-  advancedMediumStrategy(analysis) {
-    const { 
-      currentCard, pileTokens, chainValue, resourceSituation, gamePhase, players, gameContext
-    } = analysis;
-    
-    // 플레이어 수에 따른 동적 임계값 계산 (게임 상태 포함)
-    const dynamicThresholds = this.calculateDynamicThresholds(currentCard, players, gamePhase, gameContext);
-    
-    console.log(`${this.nickname} [중급]: 카드 ${currentCard}, 칩 ${pileTokens}, 연결성 ${chainValue.type}, 플레이어 ${players.length}명`);
-    console.log(`${this.nickname} [중급]: 동적 임계값 - 좋음: ${dynamicThresholds.good}칩, 수용: ${dynamicThresholds.acceptable}칩`);
-    
-    // 1. 직접 연결 - 하지만 상황에 따라 유연하게
-    if (chainValue.type === 'direct') {
-      // 플레이어 수 고려한 전략적 지연 판단
-      const shouldTryDelay = this.shouldDelayDirectConnection_Dynamic(
-        currentCard, pileTokens, players, resourceSituation, gamePhase
-      );
+    // === 0. 견제 전략 우선 체크 ===
+    if (opponentAnalysis.shouldUseBlockingStrategy) {
+      const primaryThreat = opponentAnalysis.primaryThreat;
       
-      if (shouldTryDelay && Math.random() > 0.3) {
-        console.log(`${this.nickname} [중급]: ⭐ 직접 연결이지만 칩 모으기 시도 (${currentCard})`);
-        return 'pass';
-      }
+      // 위협적인 플레이어가 이 카드를 원할 가능성이 높은지 체크
+      const threatWantsCard = this.wouldPlayerWantCard(primaryThreat, currentCard);
       
-      console.log(`${this.nickname} [중급]: 직접 연결 ${currentCard} 안전하게 취득`);
-      return 'take';
-    }
-    
-    // 2. 간접 연결 - 플레이어 수 고려
-    if (chainValue.type === 'gap1' && pileTokens >= dynamicThresholds.minimal) {
-      console.log(`${this.nickname} [중급]: 간접 연결 + 충분한 칩 ${currentCard} 취득`);
-      return 'take';
-    }
-    
-    // 3. 동적 비용-이익 분석
-    if (pileTokens >= dynamicThresholds.excellent) {
-      console.log(`${this.nickname} [중급]: 🎯 환상적 거래! ${currentCard} 취득 (${pileTokens}칩 vs ${dynamicThresholds.excellent}칩 임계값)`);
-      return 'take';
-    } else if (pileTokens >= dynamicThresholds.good) {
-      console.log(`${this.nickname} [중급]: ✅ 좋은 거래 - ${currentCard} 취득 (${pileTokens}칩)`);
-      return 'take';
-    } else if (pileTokens >= dynamicThresholds.acceptable && 
-               (resourceSituation.tokenCount <= 3 || gamePhase === 'late')) {
-      console.log(`${this.nickname} [중급]: 🤔 수용 가능한 거래 - ${currentCard} 취득 (${pileTokens}칩)`);
-      return 'take';
-    }
-    
-    // 4. 토큰 관리 (정말 위급할 때만)
-    if (resourceSituation.tokenCount <= 0) {
-      console.log(`${this.nickname} [중급]: 😫 토큰 없음! ${currentCard} 어쩔 수 없이 취득`);
-      // 강제 취득으로 인한 성격 변화
-      this.adaptPersonalityFromExperience({ 
-        type: 'forced_take', 
-        details: { card: currentCard, reason: 'no_tokens' } 
-      });
-      return 'take';
-    }
-    
-    console.log(`${this.nickname} [중급]: ${currentCard} 패스 (칩 ${pileTokens} < 임계값 ${dynamicThresholds.acceptable})`);
-    return 'pass';
-  }
-  
-  /**
-   * 상급 전략: 상대방 읽기 + 심리전 - 플레이어 수 동적 적응 
-   */
-  advancedHardStrategy(analysis) {
-    const { 
-      currentCard, pileTokens, chainValue, resourceSituation,
-      opponentThreats, gamePhase, players, gameContext
-    } = analysis;
-    
-    // 동적 임계값 계산
-    const dynamicThresholds = this.calculateDynamicThresholds(currentCard, players, gamePhase, gameContext);
-    
-    console.log(`${this.nickname} [상급]: 카드 ${currentCard}, 칩 ${pileTokens}, 연결성 ${chainValue.type}, 플레이어 ${players.length}명`);
-    console.log(`${this.nickname} [상급]: 동적 임계값 - 좋음: ${dynamicThresholds.good}칩, 환상: ${dynamicThresholds.excellent}칩`);
-    
-    // 1. 직접 연결 - 더 똑똑한 동적 판단
-    if (chainValue.type === 'direct') {
-      const shouldTryDelay = this.shouldDelayDirectConnection_Dynamic(
-        currentCard, pileTokens, players, resourceSituation, gamePhase
-      );
-      
-      // 60% 확률로 지연 (상급이므로 더 공격적)
-      if (shouldTryDelay && Math.random() > 0.4) {
-        console.log(`${this.nickname} [상급]: ⭐ 직접 연결 ${currentCard} 전략적 지연 (${players.length}명 고려)`);
-        return 'pass';
-      }
-      
-      console.log(`${this.nickname} [상급]: 직접 연결 ${currentCard} 취득`);
-      return 'take';
-    }
-    
-    // 2. 간접 연결 - 동적 판단
-    if (chainValue.type === 'gap1' && pileTokens >= dynamicThresholds.minimal) {
-      console.log(`${this.nickname} [상급]: 간접 연결 + 충분한 칩 ${currentCard} 취득`);
-      return 'take';
-    }
-    
-    // 3. 상대방 위협 고려 (동적 조정)
-    const threatThreshold = players.length >= 5 ? 40 : 50; // 인원 많으면 더 민감
-    if (opponentThreats.maxThreat >= threatThreshold) {
-      console.log(`${this.nickname} [상급]: 상대방 위협 높음 - ${currentCard} 선점`);
-      return 'take';
-    }
-    
-    // 4. 동적 거래 품질 평가
-    if (pileTokens >= dynamicThresholds.excellent) {
-      console.log(`${this.nickname} [상급]: 🎯 환상적 거래! ${currentCard} 취득 (${pileTokens}칩)`);
-      return 'take';
-    } else if (pileTokens >= dynamicThresholds.good) {
-      console.log(`${this.nickname} [상급]: ✅ 좋은 거래 - ${currentCard} 취득 (${pileTokens}칩)`);
-      return 'take';
-    } else if (pileTokens >= dynamicThresholds.acceptable && 
-               (resourceSituation.tokenCount <= 2 || gamePhase === 'late')) {
-      console.log(`${this.nickname} [상급]: 🤔 수용 가능 - ${currentCard} 취득 (토큰압박 또는 후반)`);
-      return 'take';
-    }
-    
-    // 5. 게임 단계별 동적 전략
-    if (gamePhase === 'early') {
-      // 초반: 플레이어 수 고려한 칩 파밍
-      const farmingThreshold = players.length >= 5 ? 3 : 2;
-      if (currentCard >= 25 && pileTokens <= farmingThreshold && resourceSituation.tokenCount >= 3) {
-        console.log(`${this.nickname} [상급]: 초반 칩 파밍 - ${currentCard} 패스 (${players.length}명)`);
-        return 'pass';
-      }
-    }
-    
-    // 6. 토큰 관리 (완화)
-    if (resourceSituation.tokenCount <= 0) {
-      console.log(`${this.nickname} [상급]: 😫 토큰 없음! ${currentCard} 어쩔 수 없이 취득`);
-      this.adaptPersonalityFromExperience({ 
-        type: 'forced_take', 
-        details: { card: currentCard, reason: 'no_tokens' } 
-      });
-      return 'take';
-    }
-    
-    console.log(`${this.nickname} [상급]: ${currentCard} 패스`);
-    return 'pass';
-  }
-  
-  /**
-   * 최상급 전략: 실제 인간 고수처럼 플레이 - 완전 동적 적응
-   * 직관 + 논리 + 심리전 + 경험 + 플레이어 수 고려
-   */
-  advancedExpertStrategy(analysis) {
-    const { 
-      currentCard, pileTokens, chainValue, resourceSituation,
-      opponentThreats, gamePhase, players, gameContext
-    } = analysis;
-    
-    // 최고급 동적 임계값 계산
-    const dynamicThresholds = this.calculateDynamicThresholds(currentCard, players, gamePhase, gameContext);
-    
-    console.log(`${this.nickname} [최상급]: 🧠 카드 ${currentCard}, 칩 ${pileTokens}, 연결성 ${chainValue.type}, 플레이어 ${players.length}명, 토큰 ${resourceSituation.tokenCount}`);
-    console.log(`${this.nickname} [최상급]: 고급 동적 임계값 - 최소:${dynamicThresholds.minimal}, 수용:${dynamicThresholds.acceptable}, 좋음:${dynamicThresholds.good}, 환상:${dynamicThresholds.excellent}`);
-    
-    // 내 성격과 플레이 스타일 반영 (개성 있는 AI)
-    const myPersonality = this.playVariation; // 0-1 사이
-    const isAggressive = myPersonality > 0.7;  // 공격적
-    const isConservative = myPersonality < 0.3; // 보수적
-    const isUnpredictable = myPersonality > 0.8 || myPersonality < 0.2; // 예측 불가
-    
-    // === 1. 직접 연결 - 인간 고수의 고급 동적 판단력 ===
-    if (chainValue.type === 'direct') {
-      console.log(`${this.nickname} [최상급]: 🎯 직접 연결 발견 - 고민 시작... (${players.length}명 상황)`);
-      
-      // 인간적 사고 과정들 (플레이어 수 고려)
-      const thoughts = [];
-      let shouldConsiderDelay = false;
-      
-      // 생각 1: 플레이어 수별 칩 기대값 분석
-      const expectedChipsPerPlayer = players.length <= 3 ? 0.8 : players.length <= 5 ? 1.2 : 1.8;
-      if (pileTokens < expectedChipsPerPlayer) {
-        thoughts.push(`${players.length}명이면 보통 ${expectedChipsPerPlayer.toFixed(1)}칩 정도는 모이는데...`);
-        shouldConsiderDelay = true;
-      }
-      
-      // 생각 2: 카드 가치 vs 동적 기대값
-      if (currentCard >= 25 && pileTokens < dynamicThresholds.minimal) {
-        thoughts.push(`${currentCard}카드인데 칩이 ${pileTokens}개? 좀 더 기다려볼까?`);
-        if (resourceSituation.tokenCount >= 3) shouldConsiderDelay = true;
-      }
-      
-      // 생각 3: 게임 단계와 플레이어 수 종합 판단
-      if (gamePhase === 'early' && players.length >= 4) {
-        thoughts.push(`초반이고 ${players.length}명이니까 칩 파밍할 여지가 있어`);
-        shouldConsiderDelay = true;
-      } else if (gamePhase === 'late') {
-        thoughts.push("후반이니 안전하게 가져가자");
-        shouldConsiderDelay = false;
-      }
-      
-      // 생각 4: 성격 + 상황 종합
-      if (isAggressive && players.length >= 5) {
-        thoughts.push(`${players.length}명이면 칩 많이 모일 텐데... 욕심내보자!`);
-        shouldConsiderDelay = shouldConsiderDelay && Math.random() > 0.2;
-      } else if (isConservative) {
-        thoughts.push("안전하게 확실한 걸로 가져가자");
-        shouldConsiderDelay = false;
-      }
-      
-      console.log(`${this.nickname} [최상급]: 💭 "${thoughts[Math.floor(Math.random() * thoughts.length)]}"`);
-      
-      // 최종 결정 (고급 확률 계산)
-      if (shouldConsiderDelay) {
-        let delayProbability = isAggressive ? 0.7 : isConservative ? 0.1 : 0.5;
-        // 플레이어 수별 추가 조정
-        if (players.length >= 5) delayProbability += 0.2;
-        delayProbability = Math.min(0.8, delayProbability); // 최대 80%
+      if (threatWantsCard && gameProgress > 0.4) { // 중반 이후에만 견제 활성화
+        const blockingIntensity = opponentAnalysis.blockingIntensity;
         
-        if (Math.random() < delayProbability) {
-          console.log(`${this.nickname} [최상급]: ⭐ 직접 연결 ${currentCard}... 하지만 더 노려본다! 🎲 (확률:${Math.round(delayProbability*100)}%)`);
-          return 'pass';
+        return {
+          name: '견제_전략',
+          description: `${primaryThreat.nickname} 견제 (위험도: ${primaryThreat.riskLevel})`,
+          riskTolerance: 0.7 + (blockingIntensity * 0.8), // 견제를 위해 더 큰 위험 감수
+          chipValue: 0.8, // 칩보다 견제가 우선
+          connectionBonus: 1.0,
+          isBlocking: true,
+          blockTarget: primaryThreat,
+          blockingIntensity
+        };
+      }
+    }
+    
+    // === 1. 게임 단계별 기본 전략 ===
+    
+    // 초반 전략 (0-30% 진행) - 더 적극적으로 수정
+    if (gameProgress < 0.3) {
+      if (tokenAdvantage < -3) {
+        return {
+          name: '초반_칩파밍',
+          description: '초반 칩 확보 우선',
+          riskTolerance: 0.7, // 0.3 → 0.7로 증가
+          chipValue: 1.8, // 칩의 가치를 더 높게 평가
+          connectionBonus: 1.0
+        };
+      } else if (this.cards.length <= 1) {
+        return {
+          name: '초반_빌드업',
+          description: '초반 적극적 빌드업',
+          riskTolerance: 0.8, // 새로운 적극적 전략
+          chipValue: 1.4,
+          connectionBonus: 1.3
+        };
+      } else {
+        return {
+          name: '초반_선별적',
+          description: '초반 좋은 기회만 선택',
+          riskTolerance: 0.5, // 0.2 → 0.5로 증가
+          chipValue: 1.2, // 1.0 → 1.2로 증가
+          connectionBonus: 1.2
+        };
+      }
+    }
+    
+    // 후반 전략 (70%+ 진행)
+    if (gameProgress >= 0.7) {
+      if (isLastPlace && pointsFromLast > 8) {
+        return {
+          name: '후반_절망적_도박',
+          description: '절망적 상황에서 과감한 도박',
+          riskTolerance: 2.0,
+          chipValue: 0.8,
+          connectionBonus: 0.8
+        };
+      } else if (isLeading && pointsFromLead < -5) {
+        return {
+          name: '후반_리딩_수비',
+          description: '확실한 리드 상황에서 안전하게',
+          riskTolerance: 0.1,
+          chipValue: 1.3,
+          connectionBonus: 1.1
+        };
+      } else if (!isLeading && pointsFromLead <= 8) {
+        return {
+          name: '후반_추격_공세',
+          description: '근소한 차이로 뒤처진 상황에서 적극 추격',
+          riskTolerance: 1.2,
+          chipValue: 0.9,
+          connectionBonus: 1.3
+        };
+      } else {
+        return {
+          name: '후반_균형',
+          description: '후반 균형잡힌 플레이',
+          riskTolerance: 0.6,
+          chipValue: 1.0,
+          connectionBonus: 1.1
+        };
+      }
+    }
+    
+    // === 2. 중반 상황별 전략 (30-70% 진행) ===
+    
+    // 접전 상황
+    if (isCloseGame) {
+      if (tokenAdvantage > 2) {
+        return {
+          name: '중반_접전_칩우위',
+          description: '접전에서 칩 우위 활용',
+          riskTolerance: 0.8,
+          chipValue: 0.7, // 칩 우위가 있으니 적극 사용
+          connectionBonus: 1.2
+        };
+      } else {
+        return {
+          name: '중반_접전_신중',
+          description: '접전에서 신중한 플레이',
+          riskTolerance: 0.4,
+          chipValue: 1.2,
+          connectionBonus: 1.1
+        };
+      }
+    }
+    
+    // 리딩 상황  
+    if (isLeading) {
+      return {
+        name: '중반_리딩_안정',
+        description: '리딩 상황에서 안정적 운영',
+        riskTolerance: 0.3,
+        chipValue: 1.2,
+        connectionBonus: 1.0
+      };
+    }
+    
+    // 뒤처진 상황
+    if (myRank >= Math.ceil(situation.totalPlayers * 0.7)) {
+      return {
+        name: '중반_추격_적극',
+        description: '뒤처진 상황에서 적극적 추격',
+        riskTolerance: 1.0,
+        chipValue: 0.8,
+        connectionBonus: 1.3
+      };
+    }
+    
+    // 칩 부족 상황
+    if (tokenAdvantage < -2) {
+      return {
+        name: '중반_칩부족_보존',
+        description: '칩 부족 시 보존 우선',
+        riskTolerance: 0.2,
+        chipValue: 1.5,
+        connectionBonus: 1.0
+      };
+    }
+    
+    // 기본 중반 전략
+    return {
+      name: '중반_균형',
+      description: '중반 균형잡힌 플레이',
+      riskTolerance: 0.5,
+      chipValue: 1.0,
+      connectionBonus: 1.1
+    };
+  } catch (error) {
+    console.error(`🚨 ${this.nickname}: selectStrategy 오류:`, error.message);
+    return this.getDefaultStrategy();
+  }
+}
+
+  /**
+   * 기본 안전 전략 반환
+   */
+  getDefaultStrategy() {
+    return {
+      name: '기본_안전',
+      description: '안전한 기본 전략',
+      riskTolerance: 0.3,
+      chipValue: 1.0,
+      connectionBonus: 1.0
+    };
+  }
+  
+  /**
+   * 선택된 전략을 실행하여 구체적인 결정을 내림
+   */
+  executeStrategy(strategy, currentCard, pileTokens, realCost, situation) {
+    const { riskTolerance, chipValue, connectionBonus } = strategy;
+    
+    // 견제 전략 특별 처리
+    if (strategy.isBlocking) {
+      return this.executeBlockingStrategy(strategy, currentCard, pileTokens, realCost, situation);
+    }
+    
+    // 전략별 동적 임계값 계산
+    const baseRiskTolerance = this.baseTendency.riskTolerance;
+    const strategicRiskTolerance = baseRiskTolerance * riskTolerance;
+    
+    // 난이도별 기본 허용 손실 (더 적극적으로 조정)
+    let baseMaxLoss;
+    if (this.difficulty === 'medium') {
+      baseMaxLoss = 6; // 3 → 6으로 증가
+    } else if (this.difficulty === 'hard') {
+      baseMaxLoss = 8; // 5 → 8로 증가
+    } else {
+      baseMaxLoss = 12; // 7 → 12로 대폭 증가 (전문가는 더 공격적)
+    }
+    
+    // 전략적 최대 허용 손실 = 기본값 × 전략 위험 허용도
+    const strategicMaxLoss = baseMaxLoss * strategicRiskTolerance;
+    
+    // 칩과 연결의 전략적 가치 조정
+    const adjustedChipValue = pileTokens * chipValue;
+    const adjustedConnectionBonus = this.getConnectionBonus(currentCard) * connectionBonus;
+    
+    // 전략적 실제 손실 재계산
+    const strategicCost = currentCard - adjustedConnectionBonus - adjustedChipValue;
+    
+    console.log(`   📈 전략적 재계산: ${currentCard}점 - ${adjustedConnectionBonus.toFixed(1)}연결 - ${adjustedChipValue.toFixed(1)}칩 = ${strategicCost.toFixed(1)}점`);
+    console.log(`   🎚️ 허용 손실: ${strategicMaxLoss.toFixed(1)}점 (기본 ${baseMaxLoss}점 × ${strategicRiskTolerance.toFixed(2)})`);
+    
+    // 전략적 의사결정
+    
+    // 1. 명백한 이익인 경우
+    if (strategicCost <= 0) {
+      return { action: 'take', reason: `전략적 이익 (${Math.abs(strategicCost).toFixed(1)}점 득, ${strategy.name})` };
+    }
+    
+    // 2. 칩이 많이 쌓인 경우 특별 처리 (초반 빌드업 고려)
+    if (pileTokens >= 8) {
+      // 칩이 8개 이상이면 더 관대한 기준 적용
+      const chipBonusLimit = strategicMaxLoss + Math.min(pileTokens * 0.5, 8); // 칩에 따른 추가 허용
+      if (strategicCost <= chipBonusLimit) {
+        return { action: 'take', reason: `고칩보상 (${strategicCost.toFixed(1)}점, 칩${pileTokens}개로 ${chipBonusLimit.toFixed(1)}점까지 허용)` };
+      }
+    }
+    
+    // 3. 초반 게임에서의 빌드업 전략
+    if (situation.gameProgress < 0.4 && this.cards.length <= 2) {
+      // 초반이고 카드가 적으면 빌드업을 위해 더 적극적
+      const earlyGameLimit = strategicMaxLoss + 4; // 초반에는 4점 추가 허용
+      if (strategicCost <= earlyGameLimit && currentCard <= 28) {
+        return { action: 'take', reason: `초반빌드업 (${strategicCost.toFixed(1)}점, 카드${this.cards.length}개 보유중)` };
+      }
+    }
+    
+    // 4. 직접 연결의 전략적 가치
+    const directConnection = this.hasDirectConnection(currentCard);
+    if (directConnection) {
+      const connectionLimit = strategicMaxLoss + 3; // 연결에 대한 추가 허용
+      if (strategicCost <= connectionLimit) {
+        return { action: 'take', reason: `전략적 직접연결 (${strategicCost.toFixed(1)}점, ${strategy.name})` };
+      }
+    }
+    
+    // 5. 간접 연결의 전략적 가치  
+    const indirectConnection = this.hasIndirectConnection(currentCard);
+    if (indirectConnection && strategicCost <= strategicMaxLoss + 1) {
+      return { action: 'take', reason: `전략적 간접연결 (${strategicCost.toFixed(1)}점, ${strategy.name})` };
+    }
+    
+    // 6. 전략적 허용 범위 내인 경우
+    if (strategicCost <= strategicMaxLoss) {
+      return { action: 'take', reason: `전략적 허용범위 (${strategicCost.toFixed(1)}점 ≤ ${strategicMaxLoss.toFixed(1)}점, ${strategy.name})` };
+    }
+    
+    // 5. 전략적 거부
+    return { action: 'pass', reason: `전략적 거부 (${strategicCost.toFixed(1)}점 > ${strategicMaxLoss.toFixed(1)}점, ${strategy.name})` };
+  }
+  
+  /**
+   * 견제 전략 실행 - 위협적인 상대방을 견제하기 위한 특별한 로직
+   */
+  executeBlockingStrategy(strategy, currentCard, pileTokens, realCost, situation) {
+    const { blockTarget, blockingIntensity, riskTolerance } = strategy;
+    
+    console.log(`   🛡️ 견제 전략 실행: ${blockTarget.nickname} 견제 (강도: ${(blockingIntensity * 100).toFixed(0)}%)`);
+    
+    // 견제를 위한 특별한 계산 (더 적극적으로 수정)
+    const baseMaxLoss = this.difficulty === 'medium' ? 6 : 
+                       this.difficulty === 'hard' ? 8 : 12;
+    
+    // 견제 강도에 따른 허용 손실 증가
+    const blockingBonus = blockingIntensity * 10; // 최대 10점까지 추가 허용 (6→10)
+    const blockingMaxLoss = baseMaxLoss * riskTolerance + blockingBonus;
+    
+    // 견제 가치 계산 - 칩의 가치는 유지, 견제 효과는 높게
+    const adjustedChipValue = pileTokens * 1.0; // 칩 가치 감소하지 않음 (0.8→1.0)
+    const connectionBonus = this.getConnectionBonus(currentCard);
+    const blockingCost = currentCard - connectionBonus - adjustedChipValue;
+    
+    console.log(`   🎯 견제 계산: ${currentCard}점 - ${connectionBonus.toFixed(1)}연결 - ${adjustedChipValue.toFixed(1)}칩 = ${blockingCost.toFixed(1)}점`);
+    console.log(`   🛡️ 견제 허용 손실: ${blockingMaxLoss.toFixed(1)}점 (기본 ${baseMaxLoss}점 + 견제보너스 ${blockingBonus.toFixed(1)}점)`);
+    
+    // 견제 의사결정
+    
+    // 1. 명백한 이익이면 무조건 가져가기
+    if (blockingCost <= 0) {
+      return { action: 'take', reason: `견제+이익 (${Math.abs(blockingCost).toFixed(1)}점 득, ${blockTarget.nickname} 차단)` };
+    }
+    
+    // 2. 견제 허용 범위 내라면 가져가기
+    if (blockingCost <= blockingMaxLoss) {
+      const blockingReason = blockTarget.riskFactors.slice(0, 2).join(', '); // 주요 위험 요소 2개만
+      return { action: 'take', reason: `견제 실행 (${blockingCost.toFixed(1)}점 손실, ${blockTarget.nickname} 차단: ${blockingReason})` };
+    }
+    
+    // 3. 견제를 위해서도 손실이 너무 크면 포기
+    return { action: 'pass', reason: `견제 포기 (${blockingCost.toFixed(1)}점 > ${blockingMaxLoss.toFixed(1)}점, 손실 과다)` };
+  }
+  
+  /**
+   * 실제 손실 계산 - 게임의 핵심 로직
+   */
+  calculateRealCost(currentCard, pileTokens) {
+    const baseCost = currentCard; // 기본 손실 = 카드 점수
+    const connectionBonus = this.getConnectionBonus(currentCard); // 연결 보너스
+    const chipGain = pileTokens; // 칩 이득
+    
+    return baseCost - connectionBonus - chipGain;
+  }
+  
+  /**
+   * 정확한 연결 보너스 계산 - 실제 점수 차이 기반 (명확한 변수명과 주석으로 개선)
+   */
+  getConnectionBonus(currentCard) {
+    try {
+      // 입력 유효성 검사
+      if (typeof currentCard !== 'number') {
+        console.error(`⚠️ ${this.nickname}: getConnectionBonus - 잘못된 카드 값`);
+        return 0;
+      }
+      
+      // 현재 카드만으로 계산한 순수 점수 (tokens는 보너스로 별도 처리)
+      const currentPureCardScore = this.calculateCurrentScore();
+      
+      // 새 카드를 추가한 임시 카드 목록 생성
+      const tempCards = [...this.cards, currentCard];
+      
+      // 새 카드 추가 후 순수 카드 점수 계산 (토큰 영향 제외)
+      const newPureCardScore = this.calculatePlayerScore({ cards: tempCards, tokens: 0 });
+      
+      // 실제 절약되는 점수 = 기존 점수 - 새 점수 (연결로 인한 절약)
+      const connectionSavings = currentPureCardScore - newPureCardScore;
+      
+      // 연결 정보 분석 및 로깅
+      const directConnections = this.cards.filter(card => Math.abs(card - currentCard) === 1);
+      const indirectConnections = this.cards.filter(card => Math.abs(card - currentCard) === 2);
+      
+      let connectionInfo = [];
+      let finalBonus = Math.max(0, connectionSavings);
+      
+      if (directConnections.length > 0) {
+        connectionInfo.push(`직접연결: ${directConnections.join(',')}`);
+      }
+      
+      if (indirectConnections.length > 0) {
+        // 간접 연결의 가치는 매우 제한적으로 평가 (불확실한 미래 이익)
+        const indirectBonus = Math.min(connectionSavings * 0.1, currentCard * 0.05);
+        connectionInfo.push(`간접연결: ${indirectConnections.join(',')} (${indirectBonus.toFixed(1)}점 추가)`);
+        finalBonus = Math.max(0, connectionSavings + indirectBonus);
+      }
+      
+      if (connectionInfo.length > 0) {
+        console.log(`   🔗 연결 정보: ${connectionInfo.join(', ')} → 실제 절약 ${finalBonus.toFixed(1)}점`);
+      }
+      
+      return finalBonus;
+      
+    } catch (error) {
+      console.error(`🚨 ${this.nickname}: getConnectionBonus 오류:`, error.message);
+      return 0; // 안전한 기본값
+    }
+  }
+  
+  /**
+   * 직접 연결 체크
+   */
+  hasDirectConnection(currentCard) {
+    return this.cards.some(card => Math.abs(card - currentCard) === 1);
+  }
+  
+  /**
+   * 간접 연결 체크
+   */
+  hasIndirectConnection(currentCard) {
+    return this.cards.some(card => Math.abs(card - currentCard) === 2);
+  }
+
+  /**
+   * 2단계: 감정 상태에 따른 조정 - 전략 시스템과 통합
+   */
+  applyEmotionalFactors(basicDecision, currentCard, pileTokens, players, gameState) {
+    let decision = { ...basicDecision };
+    let emotionalReasons = [];
+    
+    const emotions = this.emotionalState;
+    
+    // 현재 감정 상태를 더 자세히 로깅
+    console.log(`   💭 감정 상태: 기분 ${emotions.mood.toFixed(2)}, 자신감 ${emotions.confidence.toFixed(2)}, 승부욕 ${emotions.competitiveness.toFixed(2)}, 좌절감 ${emotions.frustration.toFixed(2)}, 복수심 ${emotions.vengeful.toFixed(2)}`);
+    
+    // 전략적 결정이 견제 전략인 경우 감정 영향을 제한
+    const isStrategicBlocking = basicDecision.reason && basicDecision.reason.includes('견제');
+    if (isStrategicBlocking) {
+      console.log(`   🛡️ 견제 전략 중이므로 감정 영향 제한`);
+      emotionalReasons.push('견제 전략 유지');
+      decision.emotionalReason = emotionalReasons.join(', ');
+      return decision;
+    }
+    
+    // 현재 손실 계산 다시 가져오기
+    const realCost = this.calculateRealCost(currentCard, pileTokens);
+    
+    // === 감정 조정 with 합리적 제한 ===
+    // 각 감정 상태에 따른 조정폭을 제한하여 완전히 비합리적인 결정 방지
+    
+    // === 기분이 좋을 때 ===
+    if (emotions.mood > 0.7) {
+      if (basicDecision.action === 'pass' && realCost > 0 && realCost <= 4) { // 손실이 적을 때만 약간 과감
+        const chance = Math.min(0.3, (emotions.mood - 0.7) * 1.0); // 최대 30% 확률
+        if (Math.random() < chance) {
+          decision.action = 'take';
+          emotionalReasons.push('기분 좋아서 약간 과감');
+        }
+      }
+    }
+    
+    // === 기분이 나쁠 때 ===
+    if (emotions.mood < 0.3) {
+      if (basicDecision.action === 'take' && realCost > 1 && realCost <= 6) { // 중간 손실에서만 더 신중
+        const chance = Math.min(0.25, (0.3 - emotions.mood) * 0.8); // 최대 25% 확률
+        if (Math.random() < chance) {
+          decision.action = 'pass';
+          emotionalReasons.push('기분 나빠서 더 신중');
+        }
+      }
+    }
+    
+    // === 자신감이 높을 때 ===
+    if (emotions.confidence > 0.8) {
+      if (basicDecision.action === 'pass' && realCost > 0 && realCost <= 3) { // 작은 손실에서만 위험 감수
+        const chance = Math.min(0.2, (emotions.confidence - 0.8) * 1.0); // 최대 20% 확률
+        if (Math.random() < chance) {
+          decision.action = 'take';
+          emotionalReasons.push('자신감으로 위험 감수');
+        }
+      }
+    }
+    
+    // === 좌절감이 높을 때 ===
+    if (emotions.frustration > 0.6) {
+      if (basicDecision.action === 'take' && realCost > 0 && realCost <= 5) { // 중간 손실에서만 더 보수적
+        const chance = Math.min(0.3, (emotions.frustration - 0.6) * 0.75); // 최대 30% 확률
+        if (Math.random() < chance) {
+          decision.action = 'pass';
+          emotionalReasons.push('좌절감으로 극도로 신중');
+        }
+      }
+    }
+    
+    // === 승부욕이 강할 때 ===
+    if (emotions.competitiveness > 0.8) {
+      const isLeading = this.isCurrentlyLeading(players);
+      if (!isLeading && basicDecision.action === 'pass' && realCost > 0 && realCost <= 8) {
+        const chance = Math.min(0.15, (emotions.competitiveness - 0.8) * 0.75); // 최대 15% 확률
+        if (Math.random() < chance) {
+          decision.action = 'take';
+          emotionalReasons.push('승부욕으로 과감');
+        }
+      }
+    }
+    
+    // === 욕심이 많을 때 ===
+    if (emotions.greed > 0.7) {
+      if (basicDecision.action === 'pass' && realCost > 0 && realCost <= 4 && pileTokens >= 2) {
+        const chance = Math.min(0.2, (emotions.greed - 0.7) * 0.67); // 최대 20% 확률
+        if (Math.random() < chance) {
+          decision.action = 'take';
+          emotionalReasons.push('욕심으로 기회 포착');
+        }
+      }
+    }
+    
+    // === 복수심이 있을 때 ===
+    if (emotions.vengeful > 0.5) {
+      const targetPlayer = this.findVengefulTarget(players);
+      if (targetPlayer && this.wouldPlayerWantCard(targetPlayer, currentCard)) {
+        // 복수를 위한 손실은 최대 3점까지만 허용 (대폭 감소)
+        if (basicDecision.action === 'pass' && realCost > 0 && realCost <= 3) {
+          const chance = Math.min(0.15, (emotions.vengeful - 0.5) * 0.3); // 최대 15% 확률로 감소
+          if (Math.random() < chance) {
+            decision.action = 'take';
+            emotionalReasons.push(`${targetPlayer.nickname}에게 복수 (손실 ${realCost.toFixed(1)}점 감수)`);
+          }
+        }
+      }
+    }
+    
+    decision.emotionalReason = emotionalReasons.length > 0 ? emotionalReasons.join(', ') : '감정 변화 없음';
+    return decision;
+  }
+
+  /**
+   * 3단계: 플레이어 관계 고려 - 전략 시스템과 통합
+   */
+  considerPlayerRelations(emotionalDecision, currentCard, players, gameState) {
+    let decision = { ...emotionalDecision };
+    let socialReasons = [];
+    
+    // 전략적 결정(특히 견제)이 이미 적용된 경우 관계 영향을 제한
+    const isStrategicDecision = emotionalDecision.reason && 
+      (emotionalDecision.reason.includes('견제') || 
+       emotionalDecision.reason.includes('전략적') ||
+       emotionalDecision.reason.includes('절망적_도박') ||
+       emotionalDecision.reason.includes('추격_공세'));
+    
+    if (isStrategicDecision) {
+      console.log(`   🎯 전략적 결정이므로 관계 영향 최소화`);
+      socialReasons.push('전략 우선');
+      decision.socialReason = socialReasons.join(', ');
+      return decision;
+    }
+    
+    // 게임 상황 분석으로 중요한 견제 대상이 있는지 확인
+    const situation = this.analyzeGameSituation(gameState);
+    const hasImportantThreat = situation.opponentAnalysis.primaryThreat && 
+                              situation.opponentAnalysis.primaryThreat.riskLevel === 'critical';
+    
+    // 중요한 위협이 있을 때는 개인적 감정보다 게임 상황 우선
+    if (hasImportantThreat) {
+      const threat = situation.opponentAnalysis.primaryThreat;
+      const threatWantsCard = this.wouldPlayerWantCard(threat, currentCard);
+      
+      if (threatWantsCard && decision.action === 'pass') {
+        decision.action = 'take';
+        socialReasons.push(`중요 위협 ${threat.nickname} 견제`);
+        decision.socialReason = socialReasons.join(', ');
+        return decision;
+      }
+    }
+    
+    // 기존 관계 로직 (제한적으로 적용)
+    
+    // 복수심이 있는 플레이어가 이 카드를 원할 수 있는지 체크 (제한적)
+    if (this.emotionalState.vengeful > 0.7) { // 임계값 상향 조정
+      const targetPlayer = this.findVengefulTarget(players);
+      if (targetPlayer && this.wouldPlayerWantCard(targetPlayer, currentCard)) {
+        if (decision.action === 'pass' && Math.random() < 0.3) { // 확률 제한
+          decision.action = 'take';
+          socialReasons.push(`${targetPlayer.nickname}에게 제한적 복수`);
+        }
+      }
+    }
+    
+    // 동맹 관계 고려 (더욱 제한적)
+    const allies = this.findAllies(players);
+    if (allies.length > 0 && decision.action === 'take') {
+      const wouldHelpAlly = allies.some(ally => this.wouldPlayerWantCard(ally, currentCard));
+      if (wouldHelpAlly && Math.random() < 0.15) { // 확률 대폭 감소
+        decision.action = 'pass';
+        socialReasons.push('동맹을 위한 제한적 양보');
+      }
+    }
+    
+    decision.socialReason = socialReasons.length > 0 ? socialReasons.join(', ') : '관계 변화 없음';
+    return decision;
+  }
+
+  /**
+   * 4단계: 제한된 무작위 요소 추가 - 전략적 결정 보호
+   */
+  addFinalRandomness(socialDecision, currentCard, pileTokens) {
+    // 전략적 결정인 경우 무작위성 완전 제거
+    const isStrategicDecision = socialDecision.reason && 
+      (socialDecision.reason.includes('견제') || 
+       socialDecision.reason.includes('전략적') ||
+       socialDecision.reason.includes('절망적_도박') ||
+       socialDecision.reason.includes('추격_공세') ||
+       socialDecision.reason.includes('중요 위협'));
+    
+    if (isStrategicDecision) {
+      console.log(`   🎯 전략적 결정이므로 무작위성 완전 제거`);
+      return socialDecision.action;
+    }
+    
+    const randomThreshold = this.baseTendency.randomness;
+    const realCost = this.calculateRealCost(currentCard, pileTokens);
+    
+    // 매우 명확한 상황에서는 무작위성 제한 - 범위 대폭 축소
+    if (realCost <= -1) { // 명확한 이익인 경우 (기준 완화)
+      console.log(`   🎲 이익이 명확하므로 무작위성 제한 (${realCost.toFixed(1)}점 이익)`);
+      return socialDecision.action;
+    }
+    
+    if (realCost >= 6) { // 명백한 손실인 경우 (기준 대폭 강화: 15점 → 6점)
+      console.log(`   🎲 손실이 과도하므로 무작위성 제한 (${realCost.toFixed(1)}점 손실)`);
+      return socialDecision.action;
+    }
+    
+    // 매우 애매한 상황(실제손실 -1~6점)에서만 최소한의 무작위성 적용
+    const adjustedThreshold = randomThreshold * 0.1; // 무작위성을 10%로 더욱 감소
+    
+    if (Math.random() < adjustedThreshold) {
+      const oppositeAction = socialDecision.action === 'take' ? 'pass' : 'take';
+      console.log(`   🎲 제한된 무작위 요소 발동! ${socialDecision.action} → ${oppositeAction} (손실 ${realCost.toFixed(1)}점)`);
+      return oppositeAction;
+    }
+    
+    return socialDecision.action;
+  }
+
+  /**
+   * 감정 상태 업데이트 시스템 - 실제 손실 계산 기반
+   */
+  updateEmotionsAfterDecision(decision, currentCard, pileTokens) {
+    const intensity = this.baseTendency.emotionalIntensity;
+    
+    if (decision === 'take') {
+      // 실제 손실 계산으로 거래 품질 판단
+      const realCost = this.calculateRealCost(currentCard, pileTokens);
+      console.log(`   💰 감정 업데이트: 실제 손실 ${realCost.toFixed(1)}점 기준으로 판단`);
+      
+      if (realCost <= 0) {
+        // 이익인 경우: 매우 좋은 거래
+        this.emotionalState.mood = Math.min(1, this.emotionalState.mood + 0.15 * intensity);
+        this.emotionalState.confidence = Math.min(1, this.emotionalState.confidence + 0.1 * intensity);
+        this.emotionalState.greed = Math.min(1, this.emotionalState.greed + 0.05 * intensity);
+        console.log(`   😍 훌륭한 거래! (${Math.abs(realCost).toFixed(1)}점 이익) 기분 대폭 상승!`);
+      } else if (realCost <= 3) {
+        // 작은 손실: 괜찮은 거래
+        this.emotionalState.mood = Math.min(1, this.emotionalState.mood + 0.05 * intensity);
+        this.emotionalState.confidence = Math.min(1, this.emotionalState.confidence + 0.03 * intensity);
+        console.log(`   😊 합리적인 거래 (${realCost.toFixed(1)}점 손실)로 약간 기분 상승!`);
+      } else if (realCost <= 8) {
+        // 중간 손실: 어쩔 수 없는 거래
+        this.emotionalState.confidence = Math.max(0, this.emotionalState.confidence - 0.02 * intensity);
+        console.log(`   😐 어쩔 수 없는 거래 (${realCost.toFixed(1)}점 손실), 약간 자신감 하락`);
+      } else {
+        // 큰 손실: 나쁜 거래
+        this.emotionalState.mood = Math.max(0, this.emotionalState.mood - 0.1 * intensity);
+        this.emotionalState.frustration = Math.min(1, this.emotionalState.frustration + 0.15 * intensity);
+        this.emotionalState.confidence = Math.max(0, this.emotionalState.confidence - 0.05 * intensity);
+        console.log(`   😞 손해가 큰 거래 (${realCost.toFixed(1)}점 손실)로 기분과 자신감 하락...`);
+      }
+    } else {
+      // 패스 결정 - 실제 손실을 고려하여 평가
+      const realCost = this.calculateRealCost(currentCard, pileTokens);
+      
+      if (realCost > 5) {
+        // 큰 손실을 피한 현명한 패스
+        this.emotionalState.confidence = Math.min(1, this.emotionalState.confidence + 0.03 * intensity);
+        console.log(`   🤓 현명한 패스! (${realCost.toFixed(1)}점 손실 회피) 자신감 상승`);
+      } else if (realCost <= 0) {
+        // 이익을 놓친 아쉬운 패스
+        this.emotionalState.frustration = Math.min(1, this.emotionalState.frustration + 0.05 * intensity);
+        console.log(`   😤 아쉬운 패스... (${Math.abs(realCost).toFixed(1)}점 이익 놓침) 약간 좌절`);
+      } else {
+        // 일반적인 패스
+        this.emotionalState.confidence = Math.max(0, this.emotionalState.confidence - 0.01 * intensity);
+        console.log(`   🤔 일반적인 패스 (${realCost.toFixed(1)}점 손실 회피), 약간의 자신감 하락`);
+      }
+    }
+    
+    // 감정 상태 출력
+    console.log(`   감정 변화: 기분 ${this.emotionalState.mood.toFixed(2)}, 자신감 ${this.emotionalState.confidence.toFixed(2)}, 좌절 ${this.emotionalState.frustration.toFixed(2)}`);
+  }
+
+  /**
+   * 상황 학습 시스템 - 관찰 가능한 정보만 활용
+   */
+  learnFromSituation(currentCard, pileTokens, players, myDecision) {
+    // 다른 플레이어들의 **관찰 가능한** 패턴 학습
+    for (const player of players) {
+      if (player.id === this.id || player.isBot) continue;
+      
+      if (!this.playerRelations[player.id]) {
+        this.playerRelations[player.id] = {
+          rivalry: 0,
+          trust: 0.5,
+          observedPatterns: []
+        };
+      }
+    }
+    
+    // 내 결정 기록
+    this.gameEvents.push({
+      type: 'decision',
+      card: currentCard,
+      tokens: pileTokens,
+      myDecision,
+      timestamp: Date.now()
+    });
+    
+    // 메모리 최적화: 최근 15개 이벤트만 유지
+    const MAX_EVENTS = 15;
+    if (this.gameEvents.length > MAX_EVENTS) {
+      this.gameEvents = this.gameEvents.slice(-MAX_EVENTS);
+    }
+  }
+  
+  /**
+   * 다른 플레이어의 행동 관찰 및 학습
+   */
+  observePlayerAction(playerId, action, card, tokens) {
+    if (!this.playerRelations[playerId]) {
+      this.playerRelations[playerId] = {
+        rivalry: 0,
+        trust: 0.5,
+        observedPatterns: []
+      };
+    }
+    
+    // 관찰된 행동 패턴 기록
+    this.playerRelations[playerId].observedPatterns.push({
+      type: action, // 'take' or 'pass'
+      card: card,
+      tokens: tokens,
+      timestamp: Date.now()
+    });
+    
+    // 메모리 최적화: 최근 20개 패턴만 유지
+    const MAX_PATTERNS = 20;
+    if (this.playerRelations[playerId].observedPatterns.length > MAX_PATTERNS) {
+      this.playerRelations[playerId].observedPatterns = 
+        this.playerRelations[playerId].observedPatterns.slice(-MAX_PATTERNS);
+    }
+    
+    console.log(`   👁️ ${this.nickname}: ${playerId}의 행동 관찰 - ${action} (카드: ${card}, 토큰: ${tokens})`);
+  }
+
+  /**
+   * 특정 이벤트에 대한 감정적 반응
+   */
+  reactToEvent(eventType, details) {
+    const intensity = this.baseTendency.emotionalIntensity;
+    
+    switch (eventType) {
+      case 'someone_took_my_card':
+        this.emotionalState.vengeful = Math.min(1, this.emotionalState.vengeful + 0.3 * intensity);
+        this.emotionalState.frustration = Math.min(1, this.emotionalState.frustration + 0.2 * intensity);
+        if (details.playerId) {
+          this.increaseRivalry(details.playerId, 0.2);
+        }
+        console.log(`😡 ${this.nickname}: ${details.playerName}이(가) 내 카드를 가져갔다! 복수심 상승!`);
+        break;
+        
+      case 'got_overtaken':
+        this.emotionalState.competitiveness = Math.min(1, this.emotionalState.competitiveness + 0.2 * intensity);
+        this.emotionalState.frustration = Math.min(1, this.emotionalState.frustration + 0.15 * intensity);
+        console.log(`😤 ${this.nickname}: 추월당했다! 승부욕 불타오른다!`);
+        break;
+        
+      case 'consecutive_bad_cards':
+        this.emotionalState.confidence = Math.max(0, this.emotionalState.confidence - 0.2 * intensity);
+        this.emotionalState.mood = Math.max(0, this.emotionalState.mood - 0.15 * intensity);
+        console.log(`😔 ${this.nickname}: 계속 나쁜 카드만... 기분이 안 좋아진다`);
+        break;
+        
+      case 'winning_streak':
+        this.emotionalState.confidence = Math.min(1, this.emotionalState.confidence + 0.2 * intensity);
+        this.emotionalState.mood = Math.min(1, this.emotionalState.mood + 0.15 * intensity);
+        this.emotionalState.greed = Math.min(1, this.emotionalState.greed + 0.1 * intensity);
+        console.log(`😎 ${this.nickname}: 연승 중이다! 더 노려봐야지!`);
+        break;
+    }
+  }
+
+  // === 게임 상황 분석 시스템 ===
+  
+  /**
+   * 게임 상황을 종합적으로 분석
+   */
+  analyzeGameSituation(gameState) {
+    const { players, deckSize, removedCount } = gameState;
+    
+    // 1. 게임 진행도 분석
+    const totalCards = 33; // 카드 3~35
+    const cardsDealt = totalCards - removedCount - deckSize;
+    const gameProgress = cardsDealt / (totalCards - removedCount); // 0~1
+    
+    // 2. 순위 및 점수 차이 분석
+    const scores = players.map(p => ({
+      id: p.id,
+      nickname: p.nickname,
+      score: this.calculatePlayerScore(p),
+      tokens: p.tokens || 0,
+      isBot: p.isBot || false
+    })).sort((a, b) => a.score - b.score);
+    
+    const myRank = scores.findIndex(s => s.id === this.id) + 1;
+    const totalPlayers = scores.length;
+    const myScore = scores.find(s => s.id === this.id).score;
+    
+    // 3. 상대방들과의 점수 차이
+    const leader = scores[0];
+    const lastPlace = scores[scores.length - 1];
+    const pointsFromLead = myScore - leader.score;
+    const pointsFromLast = lastPlace.score - myScore;
+    
+    // 4. 칩 상황 분석
+    const myTokens = this.tokens;
+    const avgTokens = players.reduce((sum, p) => sum + (p.tokens || 0), 0) / players.length;
+    const tokenAdvantage = myTokens - avgTokens;
+    
+    // 5. 위험도 평가
+    const remainingCardsRisk = this.assessRemainingCardsRisk(deckSize);
+    
+    // 6. 상대방 위험도 분석
+    const opponentAnalysis = this.analyzeOpponents(scores, gameProgress);
+    
+    const analysis = {
+      gameProgress,          // 0~1: 게임 진행도
+      myRank,               // 1~N: 내 순위
+      totalPlayers,         // 총 플레이어 수
+      pointsFromLead,       // 1등과의 점수 차이 (음수면 내가 앞서고 있음)
+      pointsFromLast,       // 꼴등과의 점수 차이 (양수면 내가 앞서고 있음)
+      tokenAdvantage,       // 평균 대비 칩 우위 (양수면 많이 보유)
+      remainingCardsRisk,   // 남은 카드들의 위험도
+      isLeading: myRank === 1,
+      isLastPlace: myRank === totalPlayers,
+      isCloseGame: Math.abs(pointsFromLead) <= 5, // 접전 여부
+      scores,
+      opponentAnalysis      // 상대방 위험도 분석 결과
+    };
+    
+    console.log(`📊 ${this.nickname} 상황 분석:`);
+    console.log(`   진행도: ${(gameProgress * 100).toFixed(0)}%, 순위: ${myRank}/${totalPlayers}`);
+    console.log(`   점수차: 1등과 ${pointsFromLead > 0 ? '+' : ''}${pointsFromLead}점, 꼴등과 ${pointsFromLast > 0 ? '+' : ''}${pointsFromLast}점`);
+    console.log(`   칩 우위: ${tokenAdvantage > 0 ? '+' : ''}${tokenAdvantage.toFixed(1)}개`);
+    
+    if (opponentAnalysis.primaryThreat) {
+      console.log(`   🚨 주요 위협: ${opponentAnalysis.primaryThreat.nickname} (위험도: ${opponentAnalysis.primaryThreat.riskLevel})`);
+    }
+    
+    return analysis;
+  }
+  
+  /**
+   * 상대방들의 위험도를 분석하고 견제 대상을 결정
+   */
+  analyzeOpponents(scores, gameProgress) {
+    const opponents = scores.filter(s => s.id !== this.id);
+    const myScore = scores.find(s => s.id === this.id).score;
+    
+    // 각 상대방의 위험도 계산
+    const opponentRisks = opponents.map(opponent => {
+      let riskScore = 0;
+      let riskFactors = [];
+      
+      // 1. 순위 위험도 (1등이거나 1등에 가까운 경우)
+      if (opponent.score <= scores[0].score) {
+        riskScore += 30; // 1등이면 높은 위험도
+        riskFactors.push('현재 1등');
+      } else if (opponent.score - scores[0].score <= 3) {
+        riskScore += 20; // 1등과 근소한 차이
+        riskFactors.push('1등 근접');
+      }
+      
+      // 2. 나와의 점수 차이 위험도
+      const scoreDiff = opponent.score - myScore;
+      if (scoreDiff < -8) {
+        riskScore += 25; // 나보다 8점 이상 앞서면 매우 위험
+        riskFactors.push(`${Math.abs(scoreDiff)}점 앞섬`);
+      } else if (scoreDiff < -3) {
+        riskScore += 15; // 나보다 3점 이상 앞서면 위험
+        riskFactors.push(`${Math.abs(scoreDiff)}점 앞섬`);
+      } else if (scoreDiff > 0 && scoreDiff <= 5) {
+        riskScore += 10; // 나보다 뒤처져 있지만 근소한 차이
+        riskFactors.push('근소한 차이로 뒤처짐');
+      }
+      
+      // 3. 칩 보유량 위험도
+      const avgTokens = scores.reduce((sum, s) => sum + s.tokens, 0) / scores.length;
+      if (opponent.tokens > avgTokens + 3) {
+        riskScore += 15; // 평균보다 칩이 많으면 위험
+        riskFactors.push(`칩 ${(opponent.tokens - avgTokens).toFixed(1)}개 우위`);
+      }
+      
+      // 4. 게임 진행도에 따른 위험도 조정
+      if (gameProgress > 0.7) {
+        // 후반에는 순위가 더 중요
+        riskScore *= 1.3;
+      } else if (gameProgress < 0.3) {
+        // 초반에는 칩 보유량이 더 중요
+        if (opponent.tokens > avgTokens + 2) {
+          riskScore += 10;
         }
       }
       
-      console.log(`${this.nickname} [최상급]: ✅ 직접 연결 ${currentCard} 확실하게 취득!`);
-      return 'take';
-    }
-    
-    // === 2. 간접 연결 - 동적 기회 포착 ===
-    if (chainValue.type === 'gap1') {
-      if (pileTokens >= dynamicThresholds.minimal) {
-        console.log(`${this.nickname} [최상급]: 🎯 간접 연결 기회! ${currentCard} 취득`);
-        return 'take';
+      // 5. 최근 행동 패턴 분석 (관찰된 데이터 기반)
+      const recentPattern = this.analyzeOpponentPattern(opponent.id);
+      if (recentPattern.isAggressive) {
+        riskScore += 10;
+        riskFactors.push('공격적 플레이');
       }
-    }
-    
-    // === 3. 상대방 읽기 (심리전) - 동적 조정 ===
-    let opponentAnalysis = "상대방 분석 중...";
-    const adaptiveThreatThreshold = players.length >= 5 ? 35 : players.length >= 4 ? 40 : 50;
-    
-    if (opponentThreats.maxThreat >= adaptiveThreatThreshold) {
-      opponentAnalysis = `누군가 이 카드를 노리고 있다! (${players.length}명 중)`;
-      if (chainValue.value >= 30 || pileTokens >= dynamicThresholds.minimal) {
-        console.log(`${this.nickname} [최상급]: 🔥 ${opponentAnalysis} 선점한다! ${currentCard}`);
-        return 'take';
-      }
-    } else {
-      opponentAnalysis = "다들 관심 없어 보인다";
-    }
-    
-    console.log(`${this.nickname} [최상급]: 👁️ ${opponentAnalysis}`);
-    
-    // === 4. 동적 거래 품질 평가 (최고급) ===
-    if (pileTokens >= dynamicThresholds.excellent) {
-      console.log(`${this.nickname} [최상급]: 🎯 환상적 거래! ${currentCard} 취득 (${pileTokens}칩 vs ${dynamicThresholds.excellent}칩 임계값)`);
-      return 'take';
-    } else if (pileTokens >= dynamicThresholds.good) {
-      console.log(`${this.nickname} [최상급]: ✅ 좋은 거래! ${currentCard} 취득 (${pileTokens}칩)`);
-      return 'take';
-    } else if (pileTokens >= dynamicThresholds.acceptable && resourceSituation.tokenCount <= 2) {
-      console.log(`${this.nickname} [최상급]: 🤔 수용 가능 + 토큰 압박으로 ${currentCard} 취득`);
-      return 'take';
-    }
-    
-    // === 5. 고급 플레이어 수 기반 칩 파밍 ===
-    if (gamePhase === 'early') {
-      const farmingThreshold = Math.max(2, Math.round(players.length * 0.6)); // 플레이어 수 기반
-      const greedFactor = isAggressive ? 0.7 : isConservative ? 0.2 : 0.4;
       
-      if (currentCard >= 25 && pileTokens <= farmingThreshold && 
-          resourceSituation.tokenCount >= 3 && Math.random() < greedFactor) {
-        console.log(`${this.nickname} [최상급]: 💰 ${players.length}명 상황에서 칩 파밍 시도! ${currentCard} 패스`);
-        return 'pass';
-      }
-    }
-    
-    // === 6. 예측 불가능성 (인간다운 변덕) ===
-    if (isUnpredictable && Math.random() < 0.15) {
-      const randomDecision = Math.random() > 0.5 ? 'take' : 'pass';
-      console.log(`${this.nickname} [최상급]: 🎲 예측불가 모드! ${currentCard} ${randomDecision === 'take' ? '취득' : '패스'}!`);
-      return randomDecision;
-    }
-    
-    // === 7. 마지막 토큰 체크 (완화됨) ===
-    if (resourceSituation.tokenCount <= 0) {
-      console.log(`${this.nickname} [최상급]: 😫 토큰 없음... ${currentCard} 어쩔 수 없이 취득`);
-      // 강제 취득으로 인한 성격 변화
-      this.adaptPersonalityFromExperience({ 
-        type: 'forced_take', 
-        details: { card: currentCard, reason: 'no_tokens' } 
-      });
-      return 'take';
-    }
-    
-    console.log(`${this.nickname} [최상급]: 🤔 ${currentCard} 별로네... 패스! (칩 ${pileTokens} < 임계값 ${dynamicThresholds.acceptable})`);
-    return 'pass';
-  }
-  
-  // === 고급 전략 시스템 ===
-  
-  /**
-   * 직접 연결 카드도 전략적으로 지연할지 결정 (실용적 버전)
-   * 핵심: 칩이 적을 때는 연결 카드라도 돌려서 더 모으기
-   */
-  shouldDelayDirectConnection(currentCard, connectedCards, gameContext) {
-    const { pileTokens, players, gamePhase, resourceSituation } = gameContext;
-    
-    console.log(`${this.nickname}: 직접 연결 ${currentCard} 지연 검토 - 칩:${pileTokens}, 토큰:${resourceSituation.tokenCount}, 단계:${gamePhase}`);
-    
-    // 기본 조건: 토큰이 부족하면 지연 불가
-    if (resourceSituation.tokenCount < 2) {
-      console.log(`${this.nickname}: 토큰 부족 (${resourceSituation.tokenCount}) - 지연 불가`);
-      return false;
-    }
-    
-    // 게임 후반이면 안전하게 가져가기
-    if (gamePhase === 'late') {
-      console.log(`${this.nickname}: 게임 후반 - 안전하게 가져가기`);
-      return false;
-    }
-    
-    // 실용적 지연 조건들 (OR 연산자로 유연성 증가)
-    let shouldDelay = false;
-    let reason = "";
-    
-    // 조건 1: 칩이 매우 적고 토큰이 충분할 때
-    if (pileTokens <= 1 && resourceSituation.tokenCount >= 4) {
-      shouldDelay = true;
-      reason = `칩 적음(${pileTokens}) + 토큰 충분(${resourceSituation.tokenCount})`;
-    }
-    
-    // 조건 2: 초반이고 칩이 적을 때
-    if (gamePhase === 'early' && pileTokens <= 2 && resourceSituation.tokenCount >= 3) {
-      shouldDelay = true;
-      reason = `초반 + 칩 적음(${pileTokens}) + 토큰 있음(${resourceSituation.tokenCount})`;
-    }
-    
-    // 조건 3: 높은 카드이고 칩이 적을 때 (웹 검색 전략)
-    if (currentCard >= 25 && pileTokens <= 1 && resourceSituation.tokenCount >= 3) {
-      shouldDelay = true;
-      reason = `높은 카드(${currentCard}) + 칩 없음 + 토큰 있음`;
-    }
-    
-    if (shouldDelay) {
-      console.log(`${this.nickname}: ⭐ 직접 연결 ${currentCard} 전략적 지연! 이유: ${reason}`);
-    } else {
-      console.log(`${this.nickname}: 직접 연결 ${currentCard} 즉시 취득`);
-    }
-    
-    return shouldDelay;
-  }
-  
-  /**
-   * 모든 상대방이 패스할 확률 계산
-   */
-  calculateAllOpponentsPassProbability(currentCard, players) {
-    let totalPassProb = 1.0;
-    
-    for (const player of players) {
-      if (player.id === this.id) continue;
+      // 위험도 레벨 결정
+      let riskLevel;
+      if (riskScore >= 50) riskLevel = 'critical';
+      else if (riskScore >= 30) riskLevel = 'high';
+      else if (riskScore >= 15) riskLevel = 'medium';
+      else riskLevel = 'low';
       
-      const individualPassProb = this.calculateIndividualPassProbability(currentCard, player);
-      totalPassProb *= individualPassProb;
-    }
-    
-    return totalPassProb;
-  }
-  
-  /**
-   * 개별 플레이어가 패스할 확률 계산
-   */
-  calculateIndividualPassProbability(currentCard, player) {
-    const playerCards = player.cards || [];
-    const playerTokens = player.tokens || 0;
-    
-    // 연결성 체크
-    let connectionStrength = 0;
-    for (const card of playerCards) {
-      const distance = Math.abs(card - currentCard);
-      if (distance === 1) connectionStrength += 3;
-      else if (distance === 2) connectionStrength += 2;
-      else if (distance === 3) connectionStrength += 1;
-    }
-    
-    // 기본 패스 확률 (카드 가치 기반)
-    let passProb = Math.min(0.9, currentCard / 40); // 높은 카드일수록 패스 확률 증가
-    
-    // 연결성이 있으면 패스 확률 감소
-    passProb = Math.max(0.1, passProb - (connectionStrength * 0.2));
-    
-    // 토큰이 적으면 패스 확률 증가
-    if (playerTokens <= 2) passProb = Math.min(0.9, passProb + 0.3);
-    
-    return passProb;
-  }
-  
-  /**
-   * 추가로 얻을 수 있는 칩 수 추정
-   */
-  estimateAdditionalChips(currentCard, players, passProb) {
-    const remainingPlayers = players.length - 1;
-    
-    // 모든 플레이어가 패스할 경우 추가 칩 = 남은 플레이어 수
-    // 확률을 곱해서 기대값 계산
-    return Math.floor(remainingPlayers * passProb);
-  }
-  
-  /**
-   * 상대방 행동 예측 시스템
-   */
-  predictOpponentBehavior(currentCard, players, gameContext) {
-    const predictions = [];
-    
-    for (const player of players) {
-      if (player.id === this.id) continue;
-      
-      const prediction = {
-        playerId: player.id,
-        nickname: player.nickname,
-        passProb: this.calculateIndividualPassProbability(currentCard, player),
-        connectionStrength: this.analyzePlayerConnectionStrength(currentCard, player),
-        tokenSituation: this.analyzePlayerTokenSituation(player, gameContext),
-        likelyAction: null
-      };
-      
-      // 예상 행동 결정
-      if (prediction.passProb >= 0.7) prediction.likelyAction = 'pass';
-      else if (prediction.passProb <= 0.3) prediction.likelyAction = 'take';
-      else prediction.likelyAction = 'uncertain';
-      
-      predictions.push(prediction);
-    }
-    
-    return predictions;
-  }
-  
-  /**
-   * 플레이어와 현재 카드의 연결 강도 분석
-   */
-  analyzePlayerConnectionStrength(currentCard, player) {
-    const playerCards = player.cards || [];
-    let connectionStrength = 0;
-    let directConnections = 0;
-    
-    for (const card of playerCards) {
-      const distance = Math.abs(card - currentCard);
-      if (distance === 1) {
-        connectionStrength += 5;
-        directConnections++;
-      } else if (distance === 2) {
-        connectionStrength += 3;
-      } else if (distance === 3) {
-        connectionStrength += 1;
-      }
-    }
-    
-    return {
-      strength: connectionStrength,
-      directConnections,
-      level: connectionStrength >= 5 ? 'high' : connectionStrength >= 3 ? 'medium' : 'low'
-    };
-  }
-  
-  /**
-   * 플레이어 토큰 상황 분석
-   */
-  analyzePlayerTokenSituation(player, gameContext) {
-    const tokens = player.tokens || 0;
-    const cards = (player.cards || []).length;
-    
-    return {
-      tokenCount: tokens,
-      cardCount: cards,
-      riskCapacity: tokens >= 5 ? 'high' : tokens >= 3 ? 'medium' : 'low',
-      isTokenPoor: tokens <= 2,
-      isTokenRich: tokens >= 8
-    };
-  }
-  
-  /**
-   * 지연 만족 vs 즉시 만족 분석
-   */
-  evaluateDelayedGratification(currentCard, pileTokens, opponentPredictions, chainValue) {
-    // 현재 즉시 얻을 수 있는 가치
-    const immediateValue = pileTokens + (chainValue.value * 0.01); // 연결 보너스
-    
-    // 지연했을 때 기대되는 가치
-    const passCount = opponentPredictions.filter(p => p.likelyAction === 'pass').length;
-    const expectedDelayedValue = immediateValue + passCount;
-    
-    // 지연의 위험도 (누군가 가져갈 확률)
-    const riskOfLoss = opponentPredictions.some(p => p.connectionStrength.level === 'high') ? 0.5 : 0.2;
-    
-    // 위험 조정된 지연 가치
-    const riskAdjustedDelayedValue = expectedDelayedValue * (1 - riskOfLoss);
-    
-    return {
-      immediateValue,
-      expectedDelayedValue,
-      riskAdjustedDelayedValue,
-      shouldDelay: riskAdjustedDelayedValue > immediateValue + 2, // 최소 2 이상의 이익이 있어야 지연
-      delayBenefit: riskAdjustedDelayedValue - immediateValue
-    };
-  }
-  
-  /**
-   * 다턴 기대값 계산
-   */
-  calculateMultiTurnExpectedValue(currentCard, gameContext, opponentPredictions) {
-    const { pileTokens, resourceSituation } = gameContext;
-    
-    // 1턴 후 기대값
-    const turn1PassCount = opponentPredictions.filter(p => p.likelyAction === 'pass').length;
-    const turn1ExpectedValue = pileTokens + turn1PassCount - 1; // 내 토큰 1개 소모
-    
-    // 2턴 후 기대값 (더 불확실)
-    const turn2PassCount = Math.floor(turn1PassCount * 0.7); // 불확실성 증가
-    const turn2ExpectedValue = turn1ExpectedValue + turn2PassCount - 1; // 추가 토큰 1개 소모
-    
-    // 토큰 부족 시 지연 불가능
-    if (resourceSituation.tokenCount < 2) {
       return {
-        turn0: pileTokens,
-        turn1: -999, // 불가능
-        turn2: -999, // 불가능
-        bestTurn: 0
+        ...opponent,
+        riskScore,
+        riskLevel,
+        riskFactors,
+        shouldBlock: riskScore >= 30 // 위험도 30 이상이면 견제 고려
       };
-    }
+    });
     
-    const values = [pileTokens, turn1ExpectedValue, turn2ExpectedValue];
-    const bestTurn = values.indexOf(Math.max(...values));
+    // 위험도순으로 정렬
+    opponentRisks.sort((a, b) => b.riskScore - a.riskScore);
     
-    return {
-      turn0: pileTokens,
-      turn1: resourceSituation.tokenCount >= 1 ? turn1ExpectedValue : -999,
-      turn2: resourceSituation.tokenCount >= 2 ? turn2ExpectedValue : -999,
-      bestTurn
-    };
-  }
-
-  // === 최상급 전용 고급 메서드들 ===
-  
-  /**
-   * 리더에게 큰 도움이 되는지 분석 (직접 연결 포기 결정용)
-   */
-  wouldSignificantlyHelpLeader(currentCard, leader) {
-    if (!leader.cards) return false;
-    
-    let helpValue = 0;
-    for (const card of leader.cards) {
-      const distance = Math.abs(card - currentCard);
-      if (distance === 1) helpValue += 5; // 직접 연결
-      else if (distance === 2) helpValue += 3; // 간접 연결
-    }
-    
-    // 리더에게 5점 이상의 도움이 된다면 포기 고려
-    return helpValue >= 5;
-  }
-  
-  /**
-   * 상대방 심리 분석 (메타게임)
-   */
-  analyzeOpponentPsychology(opponentPredictions, gamePhase) {
-    const psychology = {
-      aggressiveCount: 0,
-      conservativeCount: 0,
-      unpredictableCount: 0,
-      collectiveRisk: 'low'
-    };
-    
-    for (const pred of opponentPredictions) {
-      if (pred.likelyAction === 'take') psychology.aggressiveCount++;
-      else if (pred.likelyAction === 'pass') psychology.conservativeCount++;
-      else psychology.unpredictableCount++;
-    }
-    
-    // 전체적 위험도 평가
-    const totalPlayers = opponentPredictions.length;
-    if (psychology.aggressiveCount > totalPlayers * 0.6) {
-      psychology.collectiveRisk = 'high';
-    } else if (psychology.aggressiveCount > totalPlayers * 0.3) {
-      psychology.collectiveRisk = 'medium';
-    }
-    
-    return psychology;
-  }
-  
-  /**
-   * 완벽한 칩 파밍 전략 계산
-   */
-  calculatePerfectFarmingStrategy(params) {
-    const { currentCard, pileTokens, players, chainValue, opponentPrediction, resourceSituation, gamePhase } = params;
-    
-    // 파밍 기본 조건
-    const isHighCard = currentCard >= 25;
-    const hasLowInitialChips = pileTokens <= 2;
-    const isEarlyOrMid = gamePhase === 'early' || gamePhase === 'mid';
-    
-    if (!isHighCard || !hasLowInitialChips || !isEarlyOrMid) {
-      return { shouldFarm: false, expectedProfit: 0, requiredTokens: 0 };
-    }
-    
-    // 상대방들의 패스 확률 기반 예상 수익 계산
-    const passCount = opponentPrediction.filter(p => p.likelyAction === 'pass').length;
-    const uncertainCount = opponentPrediction.filter(p => p.likelyAction === 'uncertain').length;
-    
-    // 예상 추가 칩 (보수적 계산)
-    const expectedAdditionalChips = passCount + (uncertainCount * 0.5);
-    const expectedProfit = expectedAdditionalChips - 1; // 토큰 1개 소모
-    
-    // 파밍 조건: 최소 2칩 이상의 순이익 기대
-    const shouldFarm = expectedProfit >= 2 && resourceSituation.tokenCount >= 3;
+    // 주요 위협 대상 결정
+    const primaryThreat = opponentRisks.length > 0 && opponentRisks[0].riskScore >= 25 
+      ? opponentRisks[0] : null;
     
     return {
-      shouldFarm,
-      expectedProfit,
-      requiredTokens: 3,
-      expectedAdditionalChips
+      opponents: opponentRisks,
+      primaryThreat,
+      shouldUseBlockingStrategy: !!primaryThreat,
+      blockingIntensity: primaryThreat ? Math.min(primaryThreat.riskScore / 50, 1) : 0
     };
   }
   
   /**
-   * 게임 이론 적용
+   * 특정 상대방의 최근 행동 패턴 분석
    */
-  applyGameTheory(analysis) {
-    const { currentCard, chainValue, opponentPrediction, resourceSituation, gamePhase } = analysis;
-    
-    // 내시 균형 계산: 모든 플레이어가 합리적일 때의 최적 전략
-    let nashScore = 0;
-    let confidence = 0.5;
-    
-    // 1. 나의 최적 전략 계산
-    const myOptimalAction = this.calculateMyOptimalAction(analysis);
-    
-    // 2. 상대방의 예상 반응 고려
-    const opponentOptimalActions = this.predictOpponentOptimalActions(opponentPrediction, currentCard);
-    
-    // 3. 상호작용 결과 예측
-    if (myOptimalAction === 'pass') {
-      // 내가 패스할 때 다른 플레이어들도 패스할 확률
-      const otherPassProb = opponentOptimalActions.filter(a => a.action === 'pass').length / opponentOptimalActions.length;
-      
-      if (otherPassProb >= 0.7) {
-        nashScore = currentCard * 0.5; // 높은 점수 = 패스 권장
-        confidence = 0.85;
-      }
-    } else {
-      // 내가 가져갈 때의 기대 이익
-      nashScore = -currentCard + chainValue.value * 0.1;
-      confidence = chainValue.type === 'direct' ? 0.9 : 0.6;
+  analyzeOpponentPattern(opponentId) {
+    const relation = this.playerRelations[opponentId];
+    if (!relation || !relation.observedPatterns || relation.observedPatterns.length < 2) {
+      return { isAggressive: false, confidence: 'low' };
     }
     
+    const recentActions = relation.observedPatterns.slice(-3);
+    const takeCount = recentActions.filter(action => action.type === 'take').length;
+    const avgCardValue = recentActions
+      .filter(action => action.type === 'take')
+      .reduce((sum, action) => sum + action.card, 0) / takeCount;
+    
+    // 공격적 플레이 판단: 높은 카드를 자주 가져가거나, take 비율이 높은 경우
+    const isAggressive = (takeCount / recentActions.length > 0.7) || 
+                        (takeCount > 0 && avgCardValue > 20);
+    
     return {
-      action: nashScore > 15 ? 'pass' : 'take',
-      confidence,
-      nashScore,
-      reasoning: `내시균형 점수: ${nashScore.toFixed(1)}`
+      isAggressive,
+      takeRatio: takeCount / recentActions.length,
+      avgCardValue: takeCount > 0 ? avgCardValue : 0,
+      confidence: recentActions.length >= 3 ? 'high' : 'medium'
     };
   }
   
   /**
-   * 내 최적 행동 계산
+   * 남은 카드들의 위험도 평가
    */
-  calculateMyOptimalAction(analysis) {
-    const { currentCard, pileTokens, chainValue } = analysis;
-    
-    // 간단한 기대값 계산
-    const takeValue = pileTokens + (chainValue.value * 0.1) - currentCard;
-    
-    return takeValue > 0 ? 'take' : 'pass';
+  assessRemainingCardsRisk(deckSize) {
+    // 덱에 남은 카드 수가 적을수록 위험도 증가
+    if (deckSize <= 3) return 'very_high';
+    if (deckSize <= 6) return 'high';
+    if (deckSize <= 12) return 'medium';
+    return 'low';
   }
   
-  /**
-   * 상대방들의 최적 행동 예측
-   */
-  predictOpponentOptimalActions(opponentPredictions, currentCard) {
-    return opponentPredictions.map(pred => ({
-      playerId: pred.playerId,
-      action: pred.likelyAction,
-      confidence: pred.passProb > 0.7 ? 0.8 : pred.passProb < 0.3 ? 0.8 : 0.4
-    }));
-  }
-  
-  /**
-   * 최적 위험-보상 계산
-   */
-  calculateOptimalRiskReward(params) {
-    const { currentCard, pileTokens, chainValue, resourceSituation, delayedGratification, multiTurnValue } = params;
-    
-    // 위험도 계산
-    const cardRisk = currentCard; // 기본 위험 = 카드 점수
-    const tokenRisk = resourceSituation.isTokenPoor ? 10 : 0; // 토큰 부족 리스크
-    const totalRisk = cardRisk + tokenRisk;
-    
-    // 보상 계산
-    const immediateReward = pileTokens + (chainValue.value * 0.05);
-    const delayedReward = delayedGratification.riskAdjustedDelayedValue;
-    const multiTurnReward = multiTurnValue.bestTurn > 0 ? 
-      (multiTurnValue.bestTurn === 1 ? multiTurnValue.turn1 : multiTurnValue.turn2) : 0;
-    
-    const maxReward = Math.max(immediateReward, delayedReward, multiTurnReward);
-    
-    // 위험-보상 점수 (높을수록 위험)
-    const score = totalRisk - maxReward;
-    
-    return {
-      score,
-      risk: totalRisk,
-      reward: maxReward,
-      riskRewardRatio: maxReward > 0 ? totalRisk / maxReward : 999
-    };
-  }
-  
-  /**
-   * 적응형 변화 계산 (예측 불가능성)
-   */
-  calculateAdaptiveVariation(gamePhase, playerCount) {
-    let baseVariation = (this.playVariation - 0.5) * 3; // -1.5 ~ +1.5
-    
-    // 게임 단계별 변화
-    if (gamePhase === 'early') baseVariation *= 1.5; // 초반에 더 변화
-    else if (gamePhase === 'late') baseVariation *= 0.5; // 후반에 안정적
-    
-    // 플레이어 수에 따른 변화
-    const playerFactor = (playerCount - 3) * 0.5; // 플레이어 많을수록 변화
-    
-    return baseVariation + playerFactor;
-  }
-
   // === 도우미 메서드들 ===
   
-  analyzeOpponentNeedForCard(currentCard, players) {
-    let needCount = 0;
-    for (const player of players) {
-      if (player.id === this.id) continue;
-      const cards = player.cards || [];
-      for (const card of cards) {
-        if (Math.abs(card - currentCard) <= 2) {
-          needCount++;
-          break;
-        }
+  hasConnection(currentCard) {
+    return this.hasDirectConnection(currentCard) || this.hasIndirectConnection(currentCard);
+  }
+  
+  isCurrentlyLeading(players) {
+    const myScore = this.calculateCurrentScore();
+    return players.every(p => p.id === this.id || this.calculatePlayerScore(p) >= myScore);
+  }
+  
+  wouldPlayerWantCard(player, currentCard) {
+    if (!player || !player.id) return false;
+    
+    // 봇 vs 봇인 경우: 실제 카드 정보로 정확한 판단
+    if (player.isBot && player.cards) {
+      // 직접 연결이 있으면 높은 확률로 원함
+      const hasDirectConnection = player.cards.some(card => Math.abs(card - currentCard) === 1);
+      if (hasDirectConnection) return true;
+      
+      // 간접 연결이 있으면 중간 확률로 원함
+      const hasIndirectConnection = player.cards.some(card => Math.abs(card - currentCard) === 2);
+      if (hasIndirectConnection) return Math.random() < 0.6;
+      
+      // 낮은 가치 카드는 일반적으로 원함
+      if (currentCard <= 12) return Math.random() < 0.4;
+      return Math.random() < 0.2;
+    }
+    
+    // 인간 플레이어인 경우: 관찰된 행동 패턴과 게임 진행 상황으로 추측
+    // 1. 해당 플레이어가 최근에 비슷한 카드를 가져갔는지 확인
+    const recentActions = this.playerRelations[player.id]?.observedPatterns || [];
+    const recentTakes = recentActions.filter(action => action.type === 'take').slice(-3);
+    
+    // 2. 가져간 카드들로부터 패턴 추측
+    if (recentTakes.length > 0) {
+      const takenCards = recentTakes.map(action => action.card);
+      const hasNearbyCard = takenCards.some(card => Math.abs(card - currentCard) <= 3);
+      
+      if (hasNearbyCard) {
+        console.log(`   🔍 ${player.nickname}이(가) 최근 ${takenCards.join(',')} 카드를 가져가서 ${currentCard}를 원할 가능성 높음`);
+        return true;
       }
     }
     
-    if (needCount === 0) return 'none';
-    if (needCount === 1) return 'low';
-    return 'high';
+    // 3. 일반적인 카드 가치 기준으로 추측 (낮은 카드는 누구나 원함)
+    if (currentCard <= 10) {
+      return Math.random() < 0.7; // 70% 확률로 원한다고 가정
+    } else if (currentCard <= 20) {
+      return Math.random() < 0.4; // 40% 확률
+    } else {
+      return Math.random() < 0.2; // 20% 확률
+    }
   }
   
+  findVengefulTarget(players) {
+    for (const player of players) {
+      if (this.playerRelations[player.id]?.rivalry > 0.5) {
+        return player;
+      }
+    }
+    return null;
+  }
+  
+  findAllies(players) {
+    return players.filter(player => 
+      this.playerRelations[player.id]?.trust > 0.7
+    );
+  }
+  
+  increaseRivalry(playerId, amount) {
+    if (!this.playerRelations[playerId]) {
+      this.playerRelations[playerId] = { rivalry: 0, trust: 0.5, observedPatterns: [] };
+    }
+    this.playerRelations[playerId].rivalry = Math.min(1, this.playerRelations[playerId].rivalry + amount);
+  }
+
   calculateCurrentScore() {
     if (!this.cards || this.cards.length === 0) return 0;
     
@@ -1027,32 +1206,14 @@ class Bot {
     let i = 0;
     
     while (i < sortedCards.length) {
-      const sequenceStart = sortedCards[i];
-      score += sequenceStart;
-      
-      // 연속된 카드들 건너뛰기
+      score += sortedCards[i];
       while (i + 1 < sortedCards.length && sortedCards[i + 1] === sortedCards[i] + 1) {
         i++;
       }
       i++;
     }
     
-    return score - this.tokens; // 토큰은 -1점
-  }
-  
-  analyzeCompetitorPositions(players) {
-    let leader = null;
-    let minScore = Infinity;
-    
-    for (const player of players) {
-      const score = this.calculatePlayerScore(player);
-      if (score < minScore) {
-        minScore = score;
-        leader = player;
-      }
-    }
-    
-    return { leader, minScore };
+    return score - this.tokens;
   }
   
   calculatePlayerScore(player) {
@@ -1072,410 +1233,42 @@ class Bot {
     
     return score - (player.tokens || 0);
   }
-  
-  wouldHurtLeader(currentCard, leader) {
-    const leaderCards = leader.cards || [];
-    for (const card of leaderCards) {
-      if (Math.abs(card - currentCard) <= 2) {
-        return false; // 리더에게 좋은 카드라면 주지 않기
-      }
-    }
-    return true;
-  }
-  
-  evaluateAdvancedFarmingStrategy(currentCard, pileTokens, players, chainValue) {
-    let shouldFarm = false;
-    let farmingValue = 0;
-    
-    // 파밍 조건들
-    if (currentCard >= 25) farmingValue += 20;
-    if (pileTokens >= 3) farmingValue += 15;
-    if (chainValue.value < 30) farmingValue += 10; // 연속성이 그리 좋지 않으면
-    
-    shouldFarm = farmingValue >= 30;
-    return { shouldFarm, farmingValue };
-  }
-  
-  calculateDynamicRisk(params) {
-    const { currentCard, pileTokens, gamePhase, resourceSituation, chainValue } = params;
-    
-    let riskScore = currentCard; // 기본 위험도 = 카드 번호
-    
-    // 토큰 상황 고려
-    if (resourceSituation.isTokenPoor) riskScore += 10;
-    
-    // 게임 단계 고려
-    if (gamePhase === 'late') riskScore += 5;
-    
-    // 연속성 보정
-    riskScore -= chainValue.value * 0.2;
-    
-    // 칩 보정
-    riskScore -= pileTokens * 2;
-    
-    return { riskScore };
-  }
-  
-  // === 새로운 동적 임계값 시스템 ===
-  
-  /**
-   * 개인 성향 + 게임 상태를 모두 고려한 동적 임계값 계산
-   * 핵심: 플레이어마다 다른 리스크 성향 + 남은 카드/제거 카드 상황 고려
-   */
-  calculateDynamicThresholds(currentCard, players, gamePhase, gameState = null) {
-    const playerCount = players.length;
-    const myPersonality = this.playVariation;
-    
-    // === 1. 개인 성향 다양성 (핵심 개선) ===
-    let personalityType = "";
-    let riskTolerance = 1.0; // 기본 리스크 허용도
-    
-    if (myPersonality < 0.15) {
-      personalityType = "초극보수형";
-      riskTolerance = 0.4; // 2칩도 아까워하는 타입
-    } else if (myPersonality < 0.3) {
-      personalityType = "보수형";
-      riskTolerance = 0.6; // 2-3칩까지만
-    } else if (myPersonality < 0.5) {
-      personalityType = "신중형";
-      riskTolerance = 0.8; // 적당히
-    } else if (myPersonality < 0.7) {
-      personalityType = "균형형";
-      riskTolerance = 1.0; // 표준
-    } else if (myPersonality < 0.85) {
-      personalityType = "적극형";
-      riskTolerance = 1.3; // 4-5칩까지 가능
-    } else {
-      personalityType = "대담형";
-      riskTolerance = 1.6; // 5칩 이상도 가능
-    }
-    
-    // === 2. 게임 상태 인지 (남은 카드/제거 카드) ===
-    let gameStateMultiplier = 1.0;
-    let gameStateReason = "";
-    
-    if (gameState && typeof gameState.deckSize !== 'undefined') {
-      const deckSize = gameState.deckSize;
-      const removedCount = gameState.removedCount || 9;
-      
-      // 남은 카드가 매우 적을 때 (연결성 확률 낮아짐)
-      if (deckSize <= 3) {
-        gameStateMultiplier = 1.4; // 더 신중하게 (연결 어려움)
-        gameStateReason = `덱 ${deckSize}장 남음 - 연결 어려움`;
-      } else if (deckSize <= 8) {
-        gameStateMultiplier = 1.2; // 약간 신중
-        gameStateReason = `덱 ${deckSize}장 - 연결 제한적`;
-      } else if (deckSize >= 20) {
-        gameStateMultiplier = 0.9; // 연결 기회 많음
-        gameStateReason = `덱 ${deckSize}장 - 연결 기회 풍부`;
-      }
-    }
-    
-    // === 3. 플레이어 수 기반 배율 ===
-    let playerMultiplier;
-    if (playerCount <= 3) {
-      playerMultiplier = 0.7; // 적은 인원: 칩 적게 쌓임
-    } else if (playerCount <= 4) {
-      playerMultiplier = 0.85;
-    } else if (playerCount <= 5) {
-      playerMultiplier = 1.0; // 표준
-    } else if (playerCount <= 6) {
-      playerMultiplier = 1.15;
-    } else {
-      playerMultiplier = 1.3; // 많은 인원: 칩 많이 쌓임
-    }
-    
-    // === 4. 게임 단계별 조정 ===
-    let phaseMultiplier = 1.0;
-    if (gamePhase === 'early') {
-      phaseMultiplier = 0.8; // 초반 더 관대
-    } else if (gamePhase === 'late') {
-      phaseMultiplier = 1.2; // 후반 더 신중
-    }
-    
-    // === 5. 카드별 기본값 계산 ===
-    const baseThreshold = Math.max(1, currentCard * 0.06); // 6% 기준
-    
-    // === 6. 최종 배율 적용 ===
-    const finalMultiplier = playerMultiplier * phaseMultiplier * riskTolerance * gameStateMultiplier;
-    
-    const thresholds = {
-      minimal: Math.max(1, Math.round(baseThreshold * 0.4 * finalMultiplier)), // 최소한 (더 낮춤)
-      acceptable: Math.max(1, Math.round(baseThreshold * finalMultiplier)), // 수용 가능
-      good: Math.max(1, Math.round(baseThreshold * 1.5 * finalMultiplier)), // 좋은 거래  
-      excellent: Math.max(2, Math.round(baseThreshold * 2.5 * finalMultiplier)), // 환상적
-      playerCount,
-      finalMultiplier,
-      personalityType,
-      riskTolerance,
-      gameStateReason
-    };
-    
-    console.log(`${this.nickname}: 🎭 성향: ${personalityType} (위험성향: ${riskTolerance.toFixed(1)}x)`);
-    console.log(`${this.nickname}: 📊 게임상태: ${gameStateReason || "정상"}`);
-    console.log(`${this.nickname}: 💰 동적임계값 [${playerCount}명] - 최소:${thresholds.minimal}, 수용:${thresholds.acceptable}, 좋음:${thresholds.good}, 환상:${thresholds.excellent}`);
-    
-    return thresholds;
-  }
-  
-  /**
-   * 플레이어 수 고려한 직접 연결 지연 판단
-   */
-  shouldDelayDirectConnection_Dynamic(currentCard, pileTokens, players, resourceSituation, gamePhase) {
-    const playerCount = players.length;
-    
-    // 기본 조건: 토큰이 부족하면 지연 불가
-    if (resourceSituation.tokenCount < 2) return false;
-    
-    // 게임 후반이면 안전하게 가져가기  
-    if (gamePhase === 'late') return false;
-    
-    // 플레이어 수별 칩 기대값
-    let expectedChipsPerRound;
-    if (playerCount <= 3) {
-      expectedChipsPerRound = 0.8; // 적은 인원
-    } else if (playerCount <= 5) {
-      expectedChipsPerRound = 1.2; // 보통
-    } else {
-      expectedChipsPerRound = 1.8; // 많은 인원
-    }
-    
-    // 현재 칩 vs 기대 칩 비교
-    const potentialGain = expectedChipsPerRound - 1; // 토큰 1개 소모 고려
-    const currentValue = pileTokens;
-    
-    // 지연할 가치가 있는지 판단
-    const shouldDelay = (currentValue === 0 && potentialGain > 0.5) || // 칩 없을 때 기대값 있으면
-                        (currentValue <= 1 && potentialGain > 1) || // 칩 적을 때 큰 기대값
-                        (gamePhase === 'early' && currentCard >= 25 && currentValue <= 2); // 초반 큰 카드
-    
-    if (shouldDelay) {
-      console.log(`${this.nickname}: 직접연결 지연 고려 - 현재칩:${pileTokens}, 기대칩/라운드:${expectedChipsPerRound}, 플레이어:${playerCount}명`);
-    }
-    
-    return shouldDelay;
-  }
 
-  // === 동적 성격 변화 시스템 ===
-  
-  /**
-   * 게임 경험에 따른 성격 동적 변화
-   */
-  adaptPersonalityFromExperience(experience) {
-    this.recentExperiences.push({
-      ...experience,
-      timestamp: Date.now()
-    });
-    
-    // 최근 5개 경험만 유지
-    if (this.recentExperiences.length > 5) {
-      this.recentExperiences.shift();
-    }
-    
-    const oldPersonality = this.playVariation;
-    let personalityShift = 0;
-    
-    // 경험 유형별 성격 변화
-    switch (experience.type) {
-      case 'successful_farm':
-        // 칩 파밍 성공 → 더 공격적으로
-        personalityShift = +0.05;
-        console.log(`${this.nickname}: 💰 칩 파밍 성공! 더 공격적으로 변화 (+0.05)`);
-        break;
-        
-      case 'failed_farm':
-        // 칩 파밍 실패 → 더 보수적으로  
-        personalityShift = -0.03;
-        console.log(`${this.nickname}: 😞 칩 파밍 실패... 더 신중해짐 (-0.03)`);
-        break;
-        
-      case 'good_deal':
-        // 좋은 거래 → 약간 더 관대하게
-        personalityShift = +0.02;
-        console.log(`${this.nickname}: ✅ 좋은 거래! 약간 더 관대해짐 (+0.02)`);
-        break;
-        
-      case 'bad_deal':
-        // 나쁜 거래 → 더 까다롭게
-        personalityShift = -0.04;
-        console.log(`${this.nickname}: 😤 나쁜 거래... 더 까다로워짐 (-0.04)`);
-        break;
-        
-      case 'forced_take':
-        // 토큰 부족으로 강제 취득 → 더 계획적으로
-        personalityShift = -0.06;
-        console.log(`${this.nickname}: 😫 강제 취득... 더 계획적으로 변화 (-0.06)`);
-        break;
-        
-      case 'won_auction':
-        // 경매에서 승리 → 약간 더 자신감
-        personalityShift = +0.03;
-        console.log(`${this.nickname}: 🎯 경매 승리! 자신감 상승 (+0.03)`);
-        break;
-    }
-    
-    // 성격 변화 적용 (기본 성격에서 너무 멀어지지 않도록 제한)
-    this.playVariation = Math.max(0.05, Math.min(0.95, 
-      this.playVariation + personalityShift
-    ));
-    
-    // 기본 성격에서 0.3 이상 벗어나지 않도록 제한
-    const maxDeviation = 0.3;
-    if (Math.abs(this.playVariation - this.basePersonality) > maxDeviation) {
-      if (this.playVariation > this.basePersonality) {
-        this.playVariation = this.basePersonality + maxDeviation;
-      } else {
-        this.playVariation = this.basePersonality - maxDeviation;
-      }
-    }
-    
-    // 변화 기록
-    if (Math.abs(personalityShift) > 0.01) {
-      this.personalityShifts.push({
-        from: oldPersonality.toFixed(3),
-        to: this.playVariation.toFixed(3),
-        shift: personalityShift.toFixed(3),
-        reason: experience.type,
-        timestamp: Date.now()
-      });
-      
-      console.log(`${this.nickname}: 🎭 성격 변화: ${oldPersonality.toFixed(2)} → ${this.playVariation.toFixed(2)} (${experience.type})`);
-    }
-  }
-  
-  /**
-   * 현재 성격 상태 분석 (실시간)
-   */
-  getCurrentPersonalityState() {
-    const current = this.playVariation;
-    const base = this.basePersonality;
-    const deviation = current - base;
-    
-    let state = "";
-    if (Math.abs(deviation) < 0.05) {
-      state = "안정적";
-    } else if (deviation > 0.15) {
-      state = "매우 공격적";
-    } else if (deviation > 0.05) {
-      state = "공격적";
-    } else if (deviation < -0.15) {
-      state = "매우 보수적";
-    } else {
-      state = "보수적";
-    }
-    
-    return {
-      current: current.toFixed(3),
-      base: base.toFixed(3),
-      deviation: deviation.toFixed(3),
-      state,
-      recentShifts: this.personalityShifts.slice(-3)
-    };
-  }
-
-  // === 게임 상태 관리 메서드들 ===
+  // === 게임 상태 관리 ===
   
   addCard(cardNumber, tokens) {
     this.cards.push(cardNumber);
     this.tokens += tokens;
     
-    // 게임 기록에 간단한 정보 저장
-    this.gameMemory.push({
-      action: 'take',
-      card: cardNumber,
-      tokens: tokens,
-      timestamp: Date.now()
-    });
-    
-    // 거래 품질 분석 후 성격 변화
-    const dealQuality = this.analyzeDealQuality(cardNumber, tokens);
-    if (dealQuality === 'excellent') {
-      this.adaptPersonalityFromExperience({ type: 'good_deal', details: { card: cardNumber, tokens } });
-    } else if (dealQuality === 'poor') {
-      this.adaptPersonalityFromExperience({ type: 'bad_deal', details: { card: cardNumber, tokens } });
-    }
-  }
-  
-  /**
-   * 거래 품질 분석 (성격 변화 트리거용)
-   */
-  analyzeDealQuality(cardNumber, tokens) {
-    // 카드 점수 대비 얻은 토큰 비율로 거래 품질 평가
-    const cardValue = cardNumber; // 카드 자체가 점수
-    const tokenValue = tokens; // 얻은 토큰 수
-    
-    // 연결성 보너스 계산
-    let connectionBonus = 0;
-    for (const ownCard of this.cards) {
-      const distance = Math.abs(ownCard - cardNumber);
-      if (distance === 1) {
-        connectionBonus += 10; // 직접 연결 큰 보너스
-      } else if (distance === 2) {
-        connectionBonus += 5; // 간접 연결 보너스
-      }
-    }
-    
-    // 실제 손해/이익 계산 (토큰 + 연결 보너스 - 카드 점수)
-    const netValue = tokenValue + connectionBonus - cardValue;
-    
-    // 거래 품질 판정
-    if (netValue >= 5) {
-      return 'excellent';
-    } else if (netValue >= 0) {
-      return 'good';
-    } else if (netValue >= -10) {
-      return 'acceptable';
-    } else {
-      return 'poor';
-    }
+    console.log(`📥 ${this.nickname}: 카드 ${cardNumber} 획득 (+${tokens} 토큰)`);
   }
   
   spendToken() {
     if (this.tokens > 0) {
       this.tokens--;
-      
-      this.gameMemory.push({
-        action: 'pass',
-        timestamp: Date.now()
-      });
-      
+      console.log(`💰 ${this.nickname}: 토큰 사용 (남은 토큰: ${this.tokens})`);
       return true;
     }
     return false;
   }
   
-  /**
-   * 칩 파밍 결과에 따른 성격 변화 (외부에서 호출)
-   */
-  recordFarmingResult(successful, details = {}) {
-    if (successful) {
-      this.adaptPersonalityFromExperience({ 
-        type: 'successful_farm', 
-        details 
-      });
-    } else {
-      this.adaptPersonalityFromExperience({ 
-        type: 'failed_farm', 
-        details 
-      });
-    }
-  }
-  
-  /**
-   * 경매 승리 기록 (외부에서 호출)
-   */
-  recordAuctionWin(cardNumber, finalTokens) {
-    this.adaptPersonalityFromExperience({ 
-      type: 'won_auction', 
-      details: { card: cardNumber, tokens: finalTokens } 
-    });
-  }
-  
   reset() {
-    this.tokens = 11; // 기본 토큰 수
+    this.tokens = 11;
     this.cards = [];
-    this.gameMemory = [];
-    this.playVariation = Math.random(); // 새로운 플레이 패턴
+    this.gameEvents = [];
+    this.playerRelations = {};
+    
+    // 감정 상태 초기화 (완전 리셋이 아닌 약간의 변화)
+    this.emotionalState = {
+      mood: Math.random() * 0.4 + 0.3,
+      confidence: Math.random() * 0.4 + 0.3,
+      competitiveness: Math.random() * 0.6 + 0.2,
+      frustration: 0,
+      greed: Math.random() * 0.4 + 0.3,
+      vengeful: 0
+    };
+    
+    console.log(`🔄 ${this.nickname}: 게임 리셋 완료`);
   }
   
   getState() {
@@ -1486,7 +1279,22 @@ class Bot {
       cards: this.cards,
       isBot: this.isBot,
       difficulty: this.difficulty,
-      score: this.calculateCurrentScore()
+      score: this.calculateCurrentScore(),
+      // 디버깅용 감정 상태 (개발 중에만)
+      emotions: this.emotionalState
+    };
+  }
+  
+  /**
+   * 현재 AI 상태 요약 (디버깅용)
+   */
+  getDebugInfo() {
+    return {
+      nickname: this.nickname,
+      difficulty: this.difficulty,
+      emotions: this.emotionalState,
+      relations: this.playerRelations,
+      recentEvents: this.gameEvents.slice(-3)
     };
   }
 }
