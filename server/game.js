@@ -131,18 +131,25 @@ class Game {
     if (this.started) return false;
     
     // Initialize deck 3–35
-    const deck = [];
-    for (let i = 3; i <= 35; i++) deck.push(i);
+    const fullDeck = [];
+    for (let i = 3; i <= 35; i++) fullDeck.push(i);
     
-    // Shuffle deck using crypto-based randomness
-    for (let i = deck.length - 1; i > 0; i--) {
-      const j = Math.floor(CryptoRandom.enhancedRandom() * (i + 1));
-      [deck[i], deck[j]] = [deck[j], deck[i]];
+    // 직접 랜덤 선택 방식으로 카드 제거 (더 균등한 분포)
+    this.removedCards = [];
+    const remainingCards = [...fullDeck];
+    
+    for (let i = 0; i < this.gameSettings.removedCount; i++) {
+      const randomIndex = Math.floor(CryptoRandom.enhancedRandom() * remainingCards.length);
+      this.removedCards.push(remainingCards[randomIndex]);
+      remainingCards.splice(randomIndex, 1);
     }
     
-    // Remove cards according to settings
-    this.removedCards = deck.splice(0, this.gameSettings.removedCount);
-    this.deck = deck;
+    // 남은 카드를 덱으로 설정하고 셔플
+    this.deck = [...remainingCards];
+    for (let i = this.deck.length - 1; i > 0; i--) {
+      const j = Math.floor(CryptoRandom.enhancedRandom() * (i + 1));
+      [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
+    }
     
     // 히든 모드인 경우 히든 카드 선택
     this.hiddenCards = new Set();
@@ -215,7 +222,7 @@ class Game {
    * subsequent start will be required.
    * @param {string} id
    * @returns {Object} Object describing the outcome, including
-   *   { gameOver: boolean }
+   *   { gameOver: boolean, isHiddenRevealed: boolean }
    */
   takeCard(id) {
     if (!this.started) return { error: 'Game not started' };
@@ -223,12 +230,19 @@ class Game {
     if (!player || player.id !== id) {
       return { error: 'Not your turn' };
     }
+    
+    let isHiddenRevealed = false;
+    
+    // 히든 카드인 경우 먼저 공개만 처리
+    if (this.currentCard != null && this.hiddenCards.has(this.currentCard) && !this.revealedCards.has(this.currentCard)) {
+      this.revealedCards.add(this.currentCard);
+      isHiddenRevealed = true;
+      // 히든 카드 공개 시에는 카드를 가져가지 않고 공개만 함
+      return { gameOver: false, isHiddenRevealed: true, needsDelay: true };
+    }
+    
     // Add card to player
     if (this.currentCard != null) {
-      // 히든 카드인 경우 공개 처리
-      if (this.hiddenCards.has(this.currentCard)) {
-        this.revealedCards.add(this.currentCard);
-      }
       player.cards.push(this.currentCard);
     }
     // Collect pile tokens
@@ -244,7 +258,7 @@ class Game {
       return { gameOver: true };
     }
     // Current player remains the same
-    return { gameOver: false };
+    return { gameOver: false, isHiddenRevealed: false };
   }
 
   /**
@@ -376,7 +390,7 @@ class Game {
     if (botCount >= 3) return false;
     
     // 봇 ID와 닉네임 생성
-    const botId = `bot_${Date.now()}_${Math.random()}`;
+    const botId = `bot_${Date.now()}_${CryptoRandom.enhancedRandom()}`;
     const difficultyKorean = { medium: '중', hard: '상', expert: '최상' };
     const nickname = `AI봇 ${botCount + 1} (${difficultyKorean[difficulty]})`;
     
@@ -428,17 +442,18 @@ class Game {
     const availableCards = [...this.deck]; // 제거되지 않은 카드들
     const hiddenCount = Math.min(this.gameSettings.hiddenCardCount, availableCards.length);
     
-    // 피셔-예이츠 셔플로 랜덤하게 선택
+    // 직접 랜덤 선택 방식으로 더 균등한 분포 확보
+    const remainingCards = [...availableCards];
+    
     for (let i = 0; i < hiddenCount; i++) {
-      const randomIndex = Math.floor(CryptoRandom.enhancedRandom() * (availableCards.length - i));
-      const selectedCard = availableCards[randomIndex];
+      const randomIndex = Math.floor(CryptoRandom.enhancedRandom() * remainingCards.length);
+      const selectedCard = remainingCards[randomIndex];
       
       // 선택된 카드를 히든 카드로 설정
       this.hiddenCards.add(selectedCard);
       
-      // 선택된 카드를 맨 뒤로 이동하여 중복 선택 방지
-      [availableCards[randomIndex], availableCards[availableCards.length - 1 - i]] = 
-        [availableCards[availableCards.length - 1 - i], availableCards[randomIndex]];
+      // 선택된 카드를 제거하여 중복 선택 방지
+      remainingCards.splice(randomIndex, 1);
     }
   }
 

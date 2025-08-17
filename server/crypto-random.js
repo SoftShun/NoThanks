@@ -35,19 +35,12 @@ class CryptoRandom {
 
   /**
    * 시간 기반 추가 엔트로피와 함께 강화된 랜덤 함수
+   * 검증된 표준 방식 사용
    */
   static enhancedRandom() {
-    const timeBytes = Buffer.alloc(8);
-    const hrtime = process.hrtime.bigint();
-    const timeValue = BigInt(Date.now() * 1000) + hrtime;
-    timeBytes.writeBigUInt64BE(timeValue);
-    
-    const cryptoBytes = crypto.randomBytes(4);
-    const combined = Buffer.concat([timeBytes, cryptoBytes]);
-    
-    // SHA-256으로 해시한 후 첫 4바이트 사용
-    const hash = crypto.createHash('sha256').update(combined).digest();
-    const value = hash.readUInt32BE(0);
+    // 표준 crypto.randomBytes를 사용하되 더 많은 엔트로피 확보
+    const bytes = crypto.randomBytes(4);
+    const value = bytes.readUInt32BE(0);
     return value / 0x100000000;
   }
 }

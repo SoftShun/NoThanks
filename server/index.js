@@ -14,6 +14,7 @@ const http = require('http');
 const cors = require('cors');
 const { Server } = require('socket.io');
 const Game = require('./game');
+const CryptoRandom = require('./crypto-random');
 const path = require('path');
 
 // Create the Express app and HTTP server
@@ -74,7 +75,7 @@ function handleBotTurn() {
     randomDelay = 2800; // 상급: +0~2.8초 랜덤
   }
   
-  const delay = baseDelay + Math.random() * randomDelay;
+  const delay = baseDelay + CryptoRandom.enhancedRandom() * randomDelay;
   
   setTimeout(() => {
     // 게임이 끝났거나 턴이 바뀌었으면 중단
@@ -89,10 +90,34 @@ function handleBotTurn() {
       const tokensTaken = game.pileTokens;
       result = game.takeCard(currentPlayer.id);
       
-      // AI가 카드를 가져갔을 때 다른 AI들에게 이벤트 알림
-      notifyBotsOfCardTaken(currentPlayer, cardTaken, tokensTaken);
+      // 히든 카드 공개 단계인 경우
+      if (result.needsDelay && result.isHiddenRevealed) {
+        // 카드 공개 후 상태 브로드캐스트
+        broadcastState();
+        
+        // 1초 후 실제로 카드 가져가기 실행
+        setTimeout(() => {
+          const finalResult = game.takeCard(currentPlayer.id);
+          
+          if (finalResult && !finalResult.error) {
+            // AI가 카드를 가져갔을 때 다른 AI들에게 이벤트 알림
+            notifyBotsOfCardTaken(currentPlayer, cardTaken, tokensTaken);
+            notifyBotsOfPlayerAction(currentPlayer.id, 'take', cardTaken, tokensTaken);
+            
+            if (finalResult.gameOver) {
+              const scores = game.calculateScores();
+              handleGameEnd(scores);
+              return;
+            }
+            
+            startNextTurn();
+          }
+        }, 1000);
+        return;
+      }
       
-      // 모든 봇들이 이 행동을 관찰하도록 업데이트
+      // 일반 카드 또는 이미 공개된 히든 카드인 경우
+      notifyBotsOfCardTaken(currentPlayer, cardTaken, tokensTaken);
       notifyBotsOfPlayerAction(currentPlayer.id, 'take', cardTaken, tokensTaken);
     } else {
       const cardPassed = game.currentCard;
@@ -180,7 +205,7 @@ function notifyBotsOfRankingChange() {
         currentRank: myRank,
         totalPlayers: currentRankings.length
       });
-    } else if (isLeading && Math.random() < 0.3) {
+    } else if (isLeading && CryptoRandom.enhancedRandom() < 0.3) {
       player.reactToEvent('winning_streak', {
         currentRank: myRank
       });
@@ -387,12 +412,42 @@ io.on('connection', (socket) => {
       return;
     }
     
-    // 인간 플레이어가 카드를 가져갔을 때 AI들에게 알림
+    // 히든 카드 공개 단계인 경우
+    if (result.needsDelay && result.isHiddenRevealed) {
+      // 카드 공개 후 상태 브로드캐스트
+      broadcastState();
+      
+      // 1초 후 실제로 카드 가져가기 실행
+      setTimeout(() => {
+        const finalResult = game.takeCard(socket.id);
+        
+        if (finalResult && finalResult.error) {
+          socket.emit('gameError', { message: finalResult.error });
+          return;
+        }
+        
+        // 인간 플레이어가 카드를 가져갔을 때 AI들에게 알림
+        const humanPlayer = game.players.find(p => p.id === socket.id);
+        if (humanPlayer && !humanPlayer.isBot) {
+          notifyBotsOfCardTaken(humanPlayer, takenCard, takenTokens);
+          notifyBotsOfPlayerAction(socket.id, 'take', takenCard, takenTokens);
+        }
+        
+        if (finalResult.gameOver) {
+          const scores = game.calculateScores();
+          handleGameEnd(scores);
+          return;
+        }
+        
+        startNextTurn();
+      }, 1000);
+      return;
+    }
+    
+    // 일반 카드 또는 이미 공개된 히든 카드인 경우
     const humanPlayer = game.players.find(p => p.id === socket.id);
     if (humanPlayer && !humanPlayer.isBot) {
       notifyBotsOfCardTaken(humanPlayer, takenCard, takenTokens);
-      
-      // 봇들이 인간 플레이어의 테이크 행동을 관찰하도록 업데이트
       notifyBotsOfPlayerAction(socket.id, 'take', takenCard, takenTokens);
     }
     
@@ -402,7 +457,6 @@ io.on('connection', (socket) => {
       return;
     }
     
-    // take는 턴이 바뀌지 않지만, 카드를 가져간 후 다음 턴 시작
     startNextTurn();
   });
 

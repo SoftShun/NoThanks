@@ -295,6 +295,51 @@ body {
   100% { transform: rotateX(0deg); opacity: 1; }
 }
 
+/* 히든 카드 공개 애니메이션 */
+.card.hidden-reveal {
+  animation: hidden-reveal 0.8s ease-out forwards;
+}
+
+@keyframes hidden-reveal {
+  0% { 
+    transform: scale(1); 
+    background: linear-gradient(160deg, #4f46e5, #6366f1);
+  }
+  30% { 
+    transform: scale(1.1); 
+    background: linear-gradient(160deg, #f59e0b, #d97706);
+  }
+  60% { 
+    transform: scale(1.05); 
+    background: linear-gradient(160deg, #10b981, #059669);
+  }
+  100% { 
+    transform: scale(1); 
+    background: linear-gradient(160deg, #f8fafc, #e2e8f0);
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.card.hidden-reveal .value {
+  animation: number-reveal 0.8s ease-out forwards;
+}
+
+@keyframes number-reveal {
+  0% { 
+    color: white; 
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+  50% { 
+    color: #fbbf24; 
+    text-shadow: 0 2px 8px rgba(251, 191, 36, 0.6);
+  }
+  100% { 
+    color: #0b0f14; 
+    text-shadow: none;
+  }
+}
+
 .pile-badge {
   display: inline-flex;
   align-items: center;

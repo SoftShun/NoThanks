@@ -7,6 +7,8 @@
  * - 플레이어가 체감할 수 있는 명확한 차이
  */
 
+const CryptoRandom = require('./crypto-random');
+
 class Bot {
   constructor(id, nickname, difficulty = 'medium') {
     this.id = id;
@@ -18,11 +20,11 @@ class Bot {
     
     // === 핵심: 감정 상태 시스템 ===
     this.emotionalState = {
-      mood: Math.random() * 0.4 + 0.3,        // 0.3~0.7 (시작시 중간 정도)
-      confidence: Math.random() * 0.4 + 0.3,   // 자신감
-      competitiveness: Math.random() * 0.6 + 0.2, // 승부욕
+      mood: CryptoRandom.enhancedRandom() * 0.4 + 0.3,        // 0.3~0.7 (시작시 중간 정도)
+      confidence: CryptoRandom.enhancedRandom() * 0.4 + 0.3,   // 자신감
+      competitiveness: CryptoRandom.enhancedRandom() * 0.6 + 0.2, // 승부욕
       frustration: 0,                           // 좌절감 (시작시 0)
-      greed: Math.random() * 0.4 + 0.3,       // 욕심
+      greed: CryptoRandom.enhancedRandom() * 0.4 + 0.3,       // 욕심
       vengeful: 0                               // 복수심 (시작시 0)
     };
     
@@ -780,7 +782,7 @@ class Bot {
     if (emotions.mood > 0.7) {
       if (basicDecision.action === 'pass' && realCost > 0 && realCost <= 4) { // 손실이 적을 때만 약간 과감
         const chance = Math.min(0.3, (emotions.mood - 0.7) * 1.0); // 최대 30% 확률
-        if (Math.random() < chance) {
+        if (CryptoRandom.enhancedRandom() < chance) {
           decision.action = 'take';
           emotionalReasons.push('기분 좋아서 약간 과감');
         }
@@ -791,7 +793,7 @@ class Bot {
     if (emotions.mood < 0.3) {
       if (basicDecision.action === 'take' && realCost > 1 && realCost <= 6) { // 중간 손실에서만 더 신중
         const chance = Math.min(0.25, (0.3 - emotions.mood) * 0.8); // 최대 25% 확률
-        if (Math.random() < chance) {
+        if (CryptoRandom.enhancedRandom() < chance) {
           decision.action = 'pass';
           emotionalReasons.push('기분 나빠서 더 신중');
         }
@@ -802,7 +804,7 @@ class Bot {
     if (emotions.confidence > 0.8) {
       if (basicDecision.action === 'pass' && realCost > 0 && realCost <= 3) { // 작은 손실에서만 위험 감수
         const chance = Math.min(0.2, (emotions.confidence - 0.8) * 1.0); // 최대 20% 확률
-        if (Math.random() < chance) {
+        if (CryptoRandom.enhancedRandom() < chance) {
           decision.action = 'take';
           emotionalReasons.push('자신감으로 위험 감수');
         }
@@ -813,7 +815,7 @@ class Bot {
     if (emotions.frustration > 0.6) {
       if (basicDecision.action === 'take' && realCost > 0 && realCost <= 5) { // 중간 손실에서만 더 보수적
         const chance = Math.min(0.3, (emotions.frustration - 0.6) * 0.75); // 최대 30% 확률
-        if (Math.random() < chance) {
+        if (CryptoRandom.enhancedRandom() < chance) {
           decision.action = 'pass';
           emotionalReasons.push('좌절감으로 극도로 신중');
         }
@@ -825,7 +827,7 @@ class Bot {
       const isLeading = this.isCurrentlyLeading(players);
       if (!isLeading && basicDecision.action === 'pass' && realCost > 0 && realCost <= 8) {
         const chance = Math.min(0.15, (emotions.competitiveness - 0.8) * 0.75); // 최대 15% 확률
-        if (Math.random() < chance) {
+        if (CryptoRandom.enhancedRandom() < chance) {
           decision.action = 'take';
           emotionalReasons.push('승부욕으로 과감');
         }
@@ -836,7 +838,7 @@ class Bot {
     if (emotions.greed > 0.7) {
       if (basicDecision.action === 'pass' && realCost > 0 && realCost <= 4 && pileTokens >= 2) {
         const chance = Math.min(0.2, (emotions.greed - 0.7) * 0.67); // 최대 20% 확률
-        if (Math.random() < chance) {
+        if (CryptoRandom.enhancedRandom() < chance) {
           decision.action = 'take';
           emotionalReasons.push('욕심으로 기회 포착');
         }
@@ -850,7 +852,7 @@ class Bot {
         // 복수를 위한 손실은 최대 3점까지만 허용 (대폭 감소)
         if (basicDecision.action === 'pass' && realCost > 0 && realCost <= 3) {
           const chance = Math.min(0.15, (emotions.vengeful - 0.5) * 0.3); // 최대 15% 확률로 감소
-          if (Math.random() < chance) {
+          if (CryptoRandom.enhancedRandom() < chance) {
             decision.action = 'take';
             emotionalReasons.push(`${targetPlayer.nickname}에게 복수 (손실 ${realCost.toFixed(1)}점 감수)`);
           }
@@ -907,7 +909,7 @@ class Bot {
     if (this.emotionalState.vengeful > 0.7) { // 임계값 상향 조정
       const targetPlayer = this.findVengefulTarget(players);
       if (targetPlayer && this.wouldPlayerWantCard(targetPlayer, currentCard)) {
-        if (decision.action === 'pass' && Math.random() < 0.3) { // 확률 제한
+        if (decision.action === 'pass' && CryptoRandom.enhancedRandom() < 0.3) { // 확률 제한
           decision.action = 'take';
           socialReasons.push(`${targetPlayer.nickname}에게 제한적 복수`);
         }
@@ -918,7 +920,7 @@ class Bot {
     const allies = this.findAllies(players);
     if (allies.length > 0 && decision.action === 'take') {
       const wouldHelpAlly = allies.some(ally => this.wouldPlayerWantCard(ally, currentCard));
-      if (wouldHelpAlly && Math.random() < 0.15) { // 확률 대폭 감소
+      if (wouldHelpAlly && CryptoRandom.enhancedRandom() < 0.15) { // 확률 대폭 감소
         decision.action = 'pass';
         socialReasons.push('동맹을 위한 제한적 양보');
       }
@@ -962,7 +964,7 @@ class Bot {
     // 매우 애매한 상황(실제손실 -1~6점)에서만 최소한의 무작위성 적용
     const adjustedThreshold = randomThreshold * 0.1; // 무작위성을 10%로 더욱 감소
     
-    if (Math.random() < adjustedThreshold) {
+    if (CryptoRandom.enhancedRandom() < adjustedThreshold) {
       const oppositeAction = socialDecision.action === 'take' ? 'pass' : 'take';
       console.log(`   🎲 제한된 무작위 요소 발동! ${socialDecision.action} → ${oppositeAction} (손실 ${realCost.toFixed(1)}점)`);
       return oppositeAction;
@@ -1588,9 +1590,9 @@ class Bot {
       if (currentCard <= 10) {
         wantLevel = 1; // 낮은 카드는 누구나 원함
       } else if (currentCard <= 20) {
-        wantLevel = Math.random() < 0.3 ? 1 : 0; // 중간 카드는 30% 확률
+        wantLevel = CryptoRandom.enhancedRandom() < 0.3 ? 1 : 0; // 중간 카드는 30% 확률
       } else {
-        wantLevel = Math.random() < 0.1 ? 1 : 0; // 높은 카드는 10% 확률
+        wantLevel = CryptoRandom.enhancedRandom() < 0.1 ? 1 : 0; // 높은 카드는 10% 확률
       }
     }
     
@@ -1608,11 +1610,11 @@ class Bot {
       
       // 간접 연결이 있으면 중간 확률로 원함
       const hasIndirectConnection = player.cards.some(card => Math.abs(card - currentCard) === 2);
-      if (hasIndirectConnection) return Math.random() < 0.6;
+      if (hasIndirectConnection) return CryptoRandom.enhancedRandom() < 0.6;
       
       // 낮은 가치 카드는 일반적으로 원함
-      if (currentCard <= 12) return Math.random() < 0.4;
-      return Math.random() < 0.2;
+      if (currentCard <= 12) return CryptoRandom.enhancedRandom() < 0.4;
+      return CryptoRandom.enhancedRandom() < 0.2;
     }
     
     // 인간 플레이어는 새로운 추정 함수 사용
@@ -1703,11 +1705,11 @@ class Bot {
     
     // 감정 상태 초기화 (완전 리셋이 아닌 약간의 변화)
     this.emotionalState = {
-      mood: Math.random() * 0.4 + 0.3,
-      confidence: Math.random() * 0.4 + 0.3,
-      competitiveness: Math.random() * 0.6 + 0.2,
+      mood: CryptoRandom.enhancedRandom() * 0.4 + 0.3,
+      confidence: CryptoRandom.enhancedRandom() * 0.4 + 0.3,
+      competitiveness: CryptoRandom.enhancedRandom() * 0.6 + 0.2,
       frustration: 0,
-      greed: Math.random() * 0.4 + 0.3,
+      greed: CryptoRandom.enhancedRandom() * 0.4 + 0.3,
       vengeful: 0
     };
     

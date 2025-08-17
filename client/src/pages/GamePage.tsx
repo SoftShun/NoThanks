@@ -55,6 +55,10 @@ const GamePage: React.FC = () => {
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [newNickname, setNewNickname] = useState('');
   
+  // 히든 카드 공개 애니메이션 상태
+  const [hiddenRevealAnim, setHiddenRevealAnim] = useState(0);
+  const [prevCardState, setPrevCardState] = useState<{card: number | null, hidden: boolean} | null>(null);
+  
   // 게임 설정 입력 검증 상태
   const [inputErrors, setInputErrors] = useState<{[key: string]: string}>({});
   const [inputValues, setInputValues] = useState<{[key: string]: string}>({});
@@ -155,6 +159,26 @@ const GamePage: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [gameStarted, turnStartTime, turnTimeLimit, settings]);
+
+  // 히든 카드 공개 감지 및 애니메이션 트리거
+  useEffect(() => {
+    if (!state || !state.started) return;
+    
+    const currentCardState = {
+      card: state.currentCard,
+      hidden: state.isCurrentCardHidden
+    };
+    
+    // 같은 카드가 히든에서 공개로 바뀐 경우
+    if (prevCardState && 
+        prevCardState.card === currentCardState.card && 
+        prevCardState.hidden === true && 
+        currentCardState.hidden === false) {
+      setHiddenRevealAnim(prev => prev + 1);
+    }
+    
+    setPrevCardState(currentCardState);
+  }, [state?.currentCard, state?.isCurrentCardHidden, state?.started, prevCardState]);
 
   if (!state) {
     return (
@@ -577,7 +601,18 @@ const GamePage: React.FC = () => {
       <div className="row">
         <div className="panel">
           <div className="current-card">
-            <div className={`card ${takeAnimKey ? 'take-lift' : ''} ${state.isCurrentCardHidden ? 'hidden-card' : ''}`} aria-label="현재 카드" key={`card-${state.currentCard}-${takeAnimKey}`} onAnimationEnd={() => setTakeAnimKey(0)}>
+            <div 
+              className={`card ${takeAnimKey ? 'take-lift' : ''} ${state.isCurrentCardHidden ? 'hidden-card' : ''} ${hiddenRevealAnim > 0 ? 'hidden-reveal' : ''}`} 
+              aria-label="현재 카드" 
+              key={`card-${state.currentCard}-${takeAnimKey}-${hiddenRevealAnim}`} 
+              onAnimationEnd={(e) => {
+                if (e.animationName === 'take-lift') {
+                  setTakeAnimKey(0);
+                } else if (e.animationName === 'hidden-reveal') {
+                  setHiddenRevealAnim(0);
+                }
+              }}
+            >
               <div className="value flip-in">
                 {state.isCurrentCardHidden ? '?' : (state.currentCard ?? '–')}
               </div>
