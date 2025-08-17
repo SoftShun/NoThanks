@@ -453,7 +453,7 @@ io.on('connection', (socket) => {
       return;
     }
     
-    if (socket.id !== game.hostId) {
+    if (!game.hostId || socket.id !== game.hostId) {
       socket.emit('gameError', { message: '방장만 봇을 추가할 수 있습니다.' });
       return;
     }
@@ -471,7 +471,7 @@ io.on('connection', (socket) => {
    * AI 봇 제거 (방장만 가능)
    */
   socket.on('removeBot', (botId) => {
-    if (socket.id !== game.hostId) {
+    if (!game.hostId || socket.id !== game.hostId) {
       socket.emit('gameError', { message: '방장만 봇을 제거할 수 있습니다.' });
       return;
     }
@@ -497,15 +497,22 @@ io.on('connection', (socket) => {
     // Remove the player
     game.removePlayer(socket.id);
     
-    if (game.started) {
-      // AI봇만 남은 경우 게임 자동 취소
-      const humanPlayers = game.players.filter(p => !p.isBot);
-      if (humanPlayers.length === 0 && game.players.length > 0) {
-        console.log('Game cancelled: Only AI bots remain');
+    // 인간 플레이어가 없으면 모든 AI 봇 제거
+    const humanPlayers = game.players.filter(p => !p.isBot);
+    if (humanPlayers.length === 0 && game.players.length > 0) {
+      console.log('No human players remain, removing all AI bots');
+      if (game.started) {
+        // 게임 중이면 게임 취소
         handleGameEnd([], true, 'AI 봇만 남아 게임이 취소되었습니다.');
-        return;
+      } else {
+        // 대기실이면 완전 초기화
+        game.reset();
+        broadcastState();
       }
-      
+      return;
+    }
+    
+    if (game.started) {
       // 기존 로직: 2명 미만 남은 경우 게임 종료
       if (game.players.length < 2) {
         const scores = game.calculateScores();

@@ -133,9 +133,10 @@ class Bot {
       return { action: 'take', reason: '토큰 없음' };
     }
     
-    // 실제 손실 계산
-    const realCost = this.calculateRealCost(currentCard, pileTokens);
-    console.log(`   💰 실제 손실 계산: ${currentCard}점 카드 - ${this.getConnectionBonus(currentCard).toFixed(1)}연결보너스 - ${pileTokens}칩 = ${realCost.toFixed(1)}점 손실`);
+    // 실제 손실 계산 (삭제된 카드 정보 포함)
+    const removedCards = gameState.removedCards || [];
+    const realCost = this.calculateRealCost(currentCard, pileTokens, removedCards);
+    console.log(`   💰 실제 손실 계산: ${currentCard}점 카드 - ${this.getConnectionBonus(currentCard, removedCards).toFixed(1)}연결보너스 - ${pileTokens}칩 = ${realCost.toFixed(1)}점 손실`);
     
     // 게임 상황 분석
     const situation = this.analyzeGameSituation(gameState);
@@ -188,115 +189,162 @@ class Bot {
       }
     }
     
-    // === 1. 게임 단계별 기본 전략 ===
+    // === 1. 게임 단계별 기본 전략 - 1등 목표 강화 ===
     
-    // 초반 전략 (0-30% 진행) - 더 적극적으로 수정
+    // 초반 전략 (0-30% 진행) - 1등을 위한 초반 기반 구축
     if (gameProgress < 0.3) {
-      if (tokenAdvantage < -3) {
+      // 꼴찌 근처에 있다면 더 적극적인 플레이
+      if (myRank >= Math.ceil(situation.totalPlayers * 0.7)) {
+        return {
+          name: '초반_꼴찌탈출',
+          description: '꼴찌 탈출을 위한 적극적 플레이',
+          riskTolerance: 1.0,
+          chipValue: 1.5,
+          connectionBonus: 1.4
+        };
+      } else if (tokenAdvantage < -3) {
         return {
           name: '초반_칩파밍',
-          description: '초반 칩 확보 우선',
-          riskTolerance: 0.7, // 0.3 → 0.7로 증가
-          chipValue: 1.8, // 칩의 가치를 더 높게 평가
+          description: '1등을 위한 칩 확보 우선',
+          riskTolerance: 0.8, // 더 적극적으로
+          chipValue: 2.0, // 칩의 가치를 더 높게 평가
           connectionBonus: 1.0
         };
       } else if (this.cards.length <= 1) {
         return {
           name: '초반_빌드업',
-          description: '초반 적극적 빌드업',
-          riskTolerance: 0.8, // 새로운 적극적 전략
+          description: '1등을 위한 적극적 빌드업',
+          riskTolerance: 0.9, // 더 적극적으로
           chipValue: 1.4,
-          connectionBonus: 1.3
+          connectionBonus: 1.5,
+          buildupMode: true // 빌드업 모드 활성화
         };
       } else {
         return {
           name: '초반_선별적',
-          description: '초반 좋은 기회만 선택',
-          riskTolerance: 0.5, // 0.2 → 0.5로 증가
-          chipValue: 1.2, // 1.0 → 1.2로 증가
-          connectionBonus: 1.2
+          description: '1등을 위한 선택적 플레이',
+          riskTolerance: 0.6, // 조금 더 적극적으로
+          chipValue: 1.3,
+          connectionBonus: 1.3
         };
       }
     }
     
-    // 후반 전략 (70%+ 진행)
+    // 후반 전략 (70%+ 진행) - 1등 확정 또는 꼴찌 회피
     if (gameProgress >= 0.7) {
       if (isLastPlace && pointsFromLast > 8) {
         return {
           name: '후반_절망적_도박',
-          description: '절망적 상황에서 과감한 도박',
-          riskTolerance: 2.0,
-          chipValue: 0.8,
+          description: '꼴찌 탈출을 위한 필사적 도박',
+          riskTolerance: 2.5, // 더 과감하게
+          chipValue: 0.6,
           connectionBonus: 0.8
+        };
+      } else if (isLastPlace && pointsFromLast > 3) {
+        return {
+          name: '후반_꼴찌탈출',
+          description: '꼴찌 회피를 위한 적극적 플레이',
+          riskTolerance: 1.5,
+          chipValue: 0.8,
+          connectionBonus: 1.2
         };
       } else if (isLeading && pointsFromLead < -5) {
         return {
-          name: '후반_리딩_수비',
-          description: '확실한 리드 상황에서 안전하게',
-          riskTolerance: 0.1,
-          chipValue: 1.3,
-          connectionBonus: 1.1
+          name: '후반_1등확정',
+          description: '1등 확정을 위한 안전한 플레이',
+          riskTolerance: 0.2, // 매우 보수적
+          chipValue: 1.5,
+          connectionBonus: 1.2
+        };
+      } else if (myRank === 1 || pointsFromLead <= 3) {
+        return {
+          name: '후반_1등경쟁',
+          description: '1등 경쟁을 위한 전략적 플레이',
+          riskTolerance: 0.7,
+          chipValue: 1.1,
+          connectionBonus: 1.3
         };
       } else if (!isLeading && pointsFromLead <= 8) {
         return {
-          name: '후반_추격_공세',
-          description: '근소한 차이로 뒤처진 상황에서 적극 추격',
-          riskTolerance: 1.2,
-          chipValue: 0.9,
+          name: '후반_1등추격',
+          description: '1등 추격을 위한 공격적 플레이',
+          riskTolerance: 1.3, // 더 적극적으로
+          chipValue: 0.8,
+          connectionBonus: 1.4
+        };
+      } else {
+        return {
+          name: '후반_순위유지',
+          description: '현재 순위 유지 플레이',
+          riskTolerance: 0.7,
+          chipValue: 1.0,
+          connectionBonus: 1.2
+        };
+      }
+    }
+    
+    // === 2. 중반 상황별 전략 (30-70% 진행) - 1등 목표 중심 ===
+    
+    // 꼴찌 위험 상황 - 최우선 처리
+    if (myRank >= Math.ceil(situation.totalPlayers * 0.8)) {
+      return {
+        name: '중반_꼴찌위험',
+        description: '꼴찌 위험 - 즉시 탈출 필요',
+        riskTolerance: 1.2,
+        chipValue: 0.9,
+        connectionBonus: 1.3
+      };
+    }
+    
+    // 1등 상황
+    if (isLeading) {
+      if (pointsFromLead < -3) {
+        return {
+          name: '중반_1등유지',
+          description: '1등 우위 유지',
+          riskTolerance: 0.4,
+          chipValue: 1.3,
+          connectionBonus: 1.1
+        };
+      } else {
+        return {
+          name: '중반_1등불안',
+          description: '1등이지만 불안정 - 신중하게',
+          riskTolerance: 0.5,
+          chipValue: 1.2,
+          connectionBonus: 1.2
+        };
+      }
+    }
+    
+    // 1등 경쟁권 (2-3등)
+    if (myRank <= 3 && pointsFromLead <= 5) {
+      if (tokenAdvantage > 2) {
+        return {
+          name: '중반_1등도전_칩우위',
+          description: '1등 도전 - 칩 우위 활용',
+          riskTolerance: 0.9,
+          chipValue: 0.8, // 칩 우위가 있으니 적극 사용
           connectionBonus: 1.3
         };
       } else {
         return {
-          name: '후반_균형',
-          description: '후반 균형잡힌 플레이',
-          riskTolerance: 0.6,
-          chipValue: 1.0,
-          connectionBonus: 1.1
-        };
-      }
-    }
-    
-    // === 2. 중반 상황별 전략 (30-70% 진행) ===
-    
-    // 접전 상황
-    if (isCloseGame) {
-      if (tokenAdvantage > 2) {
-        return {
-          name: '중반_접전_칩우위',
-          description: '접전에서 칩 우위 활용',
-          riskTolerance: 0.8,
-          chipValue: 0.7, // 칩 우위가 있으니 적극 사용
+          name: '중반_1등도전',
+          description: '1등 도전을 위한 균형잡힌 플레이',
+          riskTolerance: 0.7,
+          chipValue: 1.1,
           connectionBonus: 1.2
         };
-      } else {
-        return {
-          name: '중반_접전_신중',
-          description: '접전에서 신중한 플레이',
-          riskTolerance: 0.4,
-          chipValue: 1.2,
-          connectionBonus: 1.1
-        };
       }
     }
     
-    // 리딩 상황  
-    if (isLeading) {
+    // 중위권에서 추격
+    if (myRank >= Math.ceil(situation.totalPlayers * 0.4)) {
       return {
-        name: '중반_리딩_안정',
-        description: '리딩 상황에서 안정적 운영',
-        riskTolerance: 0.3,
-        chipValue: 1.2,
-        connectionBonus: 1.0
-      };
-    }
-    
-    // 뒤처진 상황
-    if (myRank >= Math.ceil(situation.totalPlayers * 0.7)) {
-      return {
-        name: '중반_추격_적극',
-        description: '뒤처진 상황에서 적극적 추격',
+        name: '중반_상위추격',
+        description: '상위권 진입을 위한 적극적 플레이',
         riskTolerance: 1.0,
-        chipValue: 0.8,
+        chipValue: 0.9,
         connectionBonus: 1.3
       };
     }
@@ -336,6 +384,124 @@ class Bot {
       riskTolerance: 0.3,
       chipValue: 1.0,
       connectionBonus: 1.0
+    };
+  }
+  
+  /**
+   * 빌드업 전략 실행 - 삭제된 카드 고려한 똑똑한 빌드업
+   */
+  executeBuildupStrategy(currentCard, pileTokens, strategicCost, strategicMaxLoss, situation) {
+    const { cardAvailability } = situation;
+    
+    // 1. 괜찮은 숫자(낮은 카드) 우선 수집
+    if (currentCard <= 15) {
+      const buildupLimit = strategicMaxLoss + 6; // 낮은 카드는 더 관대하게
+      if (strategicCost <= buildupLimit) {
+        return { action: 'take', reason: `빌드업_낮은카드 (${currentCard}≤15, ${strategicCost.toFixed(1)}점)` };
+      }
+    }
+    
+    // 2. 높은 카드 위험 감수 전략 - 미래 연결 가능성 고려
+    if (currentCard >= 25 && cardAvailability) {
+      const futureConnectionValue = this.analyzeFutureConnections(currentCard, cardAvailability);
+      if (futureConnectionValue > 0) {
+        const highCardLimit = strategicMaxLoss + futureConnectionValue + 3; // 미래 가치 반영
+        if (strategicCost <= highCardLimit) {
+          return { action: 'take', reason: `빌드업_고카드투자 (${currentCard}≥25, 미래가치${futureConnectionValue.toFixed(1)}점)` };
+        }
+      }
+    }
+    
+    // 3. 상대방 간섭 최소화 - 상대방이 원하지 않는 카드 우선
+    const opponentInterference = this.calculateOpponentInterference(currentCard, situation.players);
+    if (opponentInterference.isLowInterference) {
+      const safetyLimit = strategicMaxLoss + 2; // 간섭이 적으면 약간 더 관대
+      if (strategicCost <= safetyLimit) {
+        return { action: 'take', reason: `빌드업_간섭최소 (상대방 관심도 낮음, ${strategicCost.toFixed(1)}점)` };
+      }
+    }
+    
+    // 4. 카드 부족 시 적극적 수집
+    if (this.cards.length === 0 && currentCard <= 28) {
+      const desperateLimit = strategicMaxLoss + 8; // 카드가 없으면 매우 관대
+      if (strategicCost <= desperateLimit) {
+        return { action: 'take', reason: `빌드업_급구 (카드0개, ${strategicCost.toFixed(1)}점)` };
+      }
+    }
+    
+    return null; // 빌드업 조건에 맞지 않음
+  }
+  
+  /**
+   * 미래 연결 가능성 분석 - 높은 카드의 투자 가치 계산
+   */
+  analyzeFutureConnections(currentCard, cardAvailability) {
+    if (!cardAvailability || !cardAvailability.connectionRisks) {
+      return 0;
+    }
+    
+    let futureValue = 0;
+    const adjacentCards = [currentCard - 1, currentCard + 1];
+    
+    adjacentCards.forEach(adjacentCard => {
+      if (adjacentCard >= 3 && adjacentCard <= 35) {
+        const riskInfo = cardAvailability.connectionRisks.get(adjacentCard);
+        if (riskInfo) {
+          // 연결 위험도가 낮을수록 미래 가치 높음
+          const connectionProbability = 1 - riskInfo.risk; // 0~1
+          futureValue += adjacentCard * connectionProbability * 0.3; // 미래 가치 계수
+        }
+      }
+    });
+    
+    // 높은 카드일수록 연결시 더 큰 절약 효과
+    if (currentCard >= 30) {
+      futureValue *= 1.5; // 30+ 카드는 1.5배 가치
+    }
+    
+    return futureValue;
+  }
+  
+  /**
+   * 상대방 간섭도 계산 - 상대방이 얼마나 원하는 카드인지
+   */
+  calculateOpponentInterference(currentCard, players) {
+    const opponents = players.filter(p => p.id !== this.id);
+    let totalInterference = 0;
+    let interferingOpponents = 0;
+    
+    opponents.forEach(opponent => {
+      let wantLevel = 0;
+      
+      if (opponent.isBot && opponent.cards) {
+        // 봇의 경우 실제 카드로 정확히 계산
+        const hasConnection = opponent.cards.some(card => 
+          Math.abs(card - currentCard) <= 2
+        );
+        if (hasConnection) {
+          wantLevel = Math.abs(opponent.cards.find(card => 
+            Math.abs(card - currentCard) <= 2
+          ) - currentCard) === 1 ? 3 : 1;
+        }
+      } else {
+        // 인간 플레이어의 경우 추정
+        wantLevel = this.estimateHumanPlayerWant(opponent, currentCard);
+      }
+      
+      if (wantLevel > 0) {
+        totalInterference += wantLevel;
+        interferingOpponents++;
+      }
+    });
+    
+    const avgInterference = interferingOpponents > 0 ? totalInterference / interferingOpponents : 0;
+    
+    return {
+      totalInterference,
+      avgInterference,
+      interferingOpponents,
+      isLowInterference: avgInterference <= 1 && interferingOpponents <= 1,
+      isHighInterference: avgInterference >= 2 || interferingOpponents >= 2
     };
   }
   
@@ -384,7 +550,23 @@ class Bot {
       return { action: 'take', reason: `전략적 이익 (${Math.abs(strategicCost).toFixed(1)}점 득, ${strategy.name})` };
     }
     
-    // 2. 칩이 많이 쌓인 경우 특별 처리 (초반 빌드업 고려)
+    // 2. 상대방 카드 경쟁 분석 - 우선순위 최상위
+    const competitionAnalysis = this.analyzeCardCompetition(currentCard, situation.players);
+    
+    if (competitionAnalysis.shouldForceTake) {
+      // 경쟁이 치열한 카드는 손실을 감수하고라도 가져가야 함
+      const competitionLimit = strategicMaxLoss + competitionAnalysis.competitionBonus;
+      if (strategicCost <= competitionLimit) {
+        return { action: 'take', reason: `경쟁차단 (${strategicCost.toFixed(1)}점, ${competitionAnalysis.reason})` };
+      }
+    }
+    
+    if (competitionAnalysis.shouldAvoidTake) {
+      // 상대방에게 너무 유리한 카드는 가져가지 않음
+      return { action: 'pass', reason: `상대이익방지 (${competitionAnalysis.reason})` };
+    }
+    
+    // 3. 칩이 많이 쌓인 경우 특별 처리 (초반 빌드업 고려)
     if (pileTokens >= 8) {
       // 칩이 8개 이상이면 더 관대한 기준 적용
       const chipBonusLimit = strategicMaxLoss + Math.min(pileTokens * 0.5, 8); // 칩에 따른 추가 허용
@@ -393,12 +575,11 @@ class Bot {
       }
     }
     
-    // 3. 초반 게임에서의 빌드업 전략
-    if (situation.gameProgress < 0.4 && this.cards.length <= 2) {
-      // 초반이고 카드가 적으면 빌드업을 위해 더 적극적
-      const earlyGameLimit = strategicMaxLoss + 4; // 초반에는 4점 추가 허용
-      if (strategicCost <= earlyGameLimit && currentCard <= 28) {
-        return { action: 'take', reason: `초반빌드업 (${strategicCost.toFixed(1)}점, 카드${this.cards.length}개 보유중)` };
+    // 3. 초반 게임에서의 빌드업 전략 - 개선된 버전
+    if (strategy.buildupMode || (situation.gameProgress < 0.4 && this.cards.length <= 2)) {
+      const buildupDecision = this.executeBuildupStrategy(currentCard, pileTokens, strategicCost, strategicMaxLoss, situation);
+      if (buildupDecision) {
+        return buildupDecision;
       }
     }
     
@@ -470,18 +651,18 @@ class Bot {
   /**
    * 실제 손실 계산 - 게임의 핵심 로직
    */
-  calculateRealCost(currentCard, pileTokens) {
+  calculateRealCost(currentCard, pileTokens, removedCards = []) {
     const baseCost = currentCard; // 기본 손실 = 카드 점수
-    const connectionBonus = this.getConnectionBonus(currentCard); // 연결 보너스
+    const connectionBonus = this.getConnectionBonus(currentCard, removedCards); // 연결 보너스 (삭제된 카드 고려)
     const chipGain = pileTokens; // 칩 이득
     
     return baseCost - connectionBonus - chipGain;
   }
   
   /**
-   * 정확한 연결 보너스 계산 - 실제 점수 차이 기반 (명확한 변수명과 주석으로 개선)
+   * 정확한 연결 보너스 계산 - 실제 점수 차이 기반 + 삭제된 카드 고려
    */
-  getConnectionBonus(currentCard) {
+  getConnectionBonus(currentCard, removedCards = []) {
     try {
       // 입력 유효성 검사
       if (typeof currentCard !== 'number') {
@@ -489,17 +670,22 @@ class Bot {
         return 0;
       }
       
-      // 현재 카드만으로 계산한 순수 점수 (tokens는 보너스로 별도 처리)
-      const currentPureCardScore = this.calculateCurrentScore();
+      // 연결 보너스 계산: 카드를 가져가지 않으면 currentCard점만큼 손해
+      // 하지만 연결이 있으면 실제 증가하는 점수는 더 적음
       
       // 새 카드를 추가한 임시 카드 목록 생성
       const tempCards = [...this.cards, currentCard];
       
-      // 새 카드 추가 후 순수 카드 점수 계산 (토큰 영향 제외)
-      const newPureCardScore = this.calculatePlayerScore({ cards: tempCards, tokens: 0 });
+      // 현재 카드만으로 계산한 순수 점수 + 새 카드 점수
+      const currentPureCardScore = this.calculatePlayerScore({ cards: this.cards, tokens: 0 });
+      const rawCardValue = currentCard; // 가져가지 않으면 이만큼 점수 증가
       
-      // 실제 절약되는 점수 = 기존 점수 - 새 점수 (연결로 인한 절약)
-      const connectionSavings = currentPureCardScore - newPureCardScore;
+      // 새 카드 추가 후 실제 증가하는 점수
+      const newPureCardScore = this.calculatePlayerScore({ cards: tempCards, tokens: 0 });
+      const actualIncrease = newPureCardScore - currentPureCardScore;
+      
+      // 연결 보너스 = 명목 가치 - 실제 증가량
+      const connectionSavings = rawCardValue - actualIncrease;
       
       // 연결 정보 분석 및 로깅
       const directConnections = this.cards.filter(card => Math.abs(card - currentCard) === 1);
@@ -513,8 +699,21 @@ class Bot {
       }
       
       if (indirectConnections.length > 0) {
-        // 간접 연결의 가치는 매우 제한적으로 평가 (불확실한 미래 이익)
-        const indirectBonus = Math.min(connectionSavings * 0.1, currentCard * 0.05);
+        // 간접 연결의 가치 계산 - 삭제된 카드 고려
+        let indirectBonus = Math.min(connectionSavings * 0.1, currentCard * 0.05);
+        
+        // 삭제된 카드 정보가 있으면 간접 연결의 위험도 조정
+        if (removedCards.length > 0) {
+          indirectConnections.forEach(indirectCard => {
+            const bridgeCard = (indirectCard + currentCard) / 2;
+            // 중간 카드가 삭제되었으면 간접 연결 가치 대폭 하락
+            if (Number.isInteger(bridgeCard) && removedCards.includes(bridgeCard)) {
+              indirectBonus *= 0.2; // 80% 감소
+              connectionInfo.push(`간접연결 위험: ${bridgeCard} 삭제됨`);
+            }
+          });
+        }
+        
         connectionInfo.push(`간접연결: ${indirectConnections.join(',')} (${indirectBonus.toFixed(1)}점 추가)`);
         finalBonus = Math.max(0, connectionSavings + indirectBonus);
       }
@@ -929,7 +1128,7 @@ class Bot {
    * 게임 상황을 종합적으로 분석
    */
   analyzeGameSituation(gameState) {
-    const { players, deckSize, removedCount } = gameState;
+    const { players, deckSize, removedCount, removedCards } = gameState;
     
     // 1. 게임 진행도 분석
     const totalCards = 33; // 카드 3~35
@@ -966,6 +1165,9 @@ class Bot {
     // 6. 상대방 위험도 분석
     const opponentAnalysis = this.analyzeOpponents(scores, gameProgress);
     
+    // 7. 삭제된 카드 기반 연결 가능성 분석
+    const cardAvailability = this.analyzeCardAvailability(removedCards || []);
+    
     const analysis = {
       gameProgress,          // 0~1: 게임 진행도
       myRank,               // 1~N: 내 순위
@@ -978,7 +1180,9 @@ class Bot {
       isLastPlace: myRank === totalPlayers,
       isCloseGame: Math.abs(pointsFromLead) <= 5, // 접전 여부
       scores,
-      opponentAnalysis      // 상대방 위험도 분석 결과
+      opponentAnalysis,     // 상대방 위험도 분석 결과
+      players,              // 경쟁 분석을 위한 플레이어 정보 추가
+      cardAvailability      // 삭제된 카드 기반 연결 가능성 분석
     };
     
     console.log(`📊 ${this.nickname} 상황 분석:`);
@@ -1121,6 +1325,211 @@ class Bot {
     return 'low';
   }
   
+  /**
+   * 삭제된 카드를 고려한 연결 가능성 분석
+   */
+  analyzeCardAvailability(removedCards) {
+    const analysis = {
+      removedCards: removedCards || [],
+      connectionRisks: new Map(), // 각 카드별 연결 위험도
+      brokenChains: [], // 끊어진 연속 구간
+      safeCards: [], // 안전한 카드들 (연결 가능성 높음)
+      riskyCards: [] // 위험한 카드들 (연결 끊어질 가능성 높음)
+    };
+    
+    // 3~35 범위의 모든 카드에 대해 연결 가능성 분석
+    for (let card = 3; card <= 35; card++) {
+      const prevCard = card - 1;
+      const nextCard = card + 1;
+      
+      let connectionRisk = 0;
+      let riskFactors = [];
+      
+      // 이전 카드가 삭제되었는지 체크
+      if (prevCard >= 3 && removedCards.includes(prevCard)) {
+        connectionRisk += 0.5;
+        riskFactors.push(`${prevCard} 삭제됨`);
+      }
+      
+      // 다음 카드가 삭제되었는지 체크
+      if (nextCard <= 35 && removedCards.includes(nextCard)) {
+        connectionRisk += 0.5;
+        riskFactors.push(`${nextCard} 삭제됨`);
+      }
+      
+      // 양쪽이 모두 삭제된 경우 (완전 고립)
+      if (connectionRisk >= 1.0) {
+        analysis.riskyCards.push({
+          card,
+          risk: 'isolated',
+          factors: riskFactors
+        });
+      } else if (connectionRisk >= 0.5) {
+        analysis.riskyCards.push({
+          card,
+          risk: 'partial',
+          factors: riskFactors
+        });
+      } else {
+        analysis.safeCards.push({
+          card,
+          risk: 'safe',
+          factors: []
+        });
+      }
+      
+      analysis.connectionRisks.set(card, {
+        risk: connectionRisk,
+        factors: riskFactors
+      });
+    }
+    
+    // 끊어진 연속 구간 분석
+    let chainStart = 3;
+    for (let card = 3; card <= 35; card++) {
+      if (removedCards.includes(card)) {
+        if (card > chainStart) {
+          analysis.brokenChains.push({
+            start: chainStart,
+            end: card - 1,
+            length: card - chainStart
+          });
+        }
+        chainStart = card + 1;
+      }
+    }
+    
+    // 마지막 구간 처리
+    if (chainStart <= 35) {
+      analysis.brokenChains.push({
+        start: chainStart,
+        end: 35,
+        length: 35 - chainStart + 1
+      });
+    }
+    
+    console.log(`🃏 카드 가용성 분석: 삭제된 카드 ${removedCards.length}개, 안전 카드 ${analysis.safeCards.length}개, 위험 카드 ${analysis.riskyCards.length}개`);
+    if (analysis.brokenChains.length > 0) {
+      console.log(`   끊어진 구간: ${analysis.brokenChains.map(c => `${c.start}-${c.end}(${c.length}장)`).join(', ')}`);
+    }
+    
+    return analysis;
+  }
+  
+  /**
+   * 카드 경쟁 상황 분석 - 핵심 전략 로직
+   */
+  analyzeCardCompetition(currentCard, players) {
+    const opponents = players.filter(p => p.id !== this.id);
+    let competitionLevel = 0;
+    let competitorsWhoWant = [];
+    let myConnectionValue = 0;
+    let opponentBenefits = [];
+    
+    // 1. 내가 이 카드를 얼마나 원하는지 계산
+    const myDirectConnection = this.hasDirectConnection(currentCard);
+    const myIndirectConnection = this.hasIndirectConnection(currentCard);
+    
+    if (myDirectConnection) myConnectionValue = 3;
+    else if (myIndirectConnection) myConnectionValue = 1;
+    
+    // 2. 각 상대방이 이 카드를 얼마나 원하는지 분석
+    opponents.forEach(opponent => {
+      let opponentWantLevel = 0;
+      let benefit = 0;
+      
+      // 봇인 경우 실제 카드로 정확히 계산
+      if (opponent.isBot && opponent.cards) {
+        const hasDirectConn = opponent.cards.some(card => Math.abs(card - currentCard) === 1);
+        const hasIndirectConn = opponent.cards.some(card => Math.abs(card - currentCard) === 2);
+        
+        if (hasDirectConn) {
+          opponentWantLevel = 3;
+          benefit = 5; // 직접 연결은 높은 이익
+        } else if (hasIndirectConn) {
+          opponentWantLevel = 2;
+          benefit = 2; // 간접 연결은 중간 이익
+        } else if (currentCard <= 15) {
+          opponentWantLevel = 1;
+          benefit = 1; // 낮은 카드는 누구나 원함
+        }
+      } else {
+        // 인간 플레이어는 관찰된 패턴과 추정 로직으로 분석
+        const wantLevel = this.estimateHumanPlayerWant(opponent, currentCard);
+        if (wantLevel > 0) {
+          opponentWantLevel = wantLevel;
+          benefit = wantLevel + 1; // 원하는 정도에 비례한 이익
+        }
+      }
+      
+      if (opponentWantLevel > 0) {
+        competitorsWhoWant.push({
+          player: opponent,
+          wantLevel: opponentWantLevel,
+          benefit: benefit
+        });
+        competitionLevel += opponentWantLevel;
+      }
+      
+      opponentBenefits.push({ player: opponent, benefit });
+    });
+    
+    // 3. 경쟁 상황 판단
+    const totalCompetitors = competitorsWhoWant.length;
+    const maxOpponentBenefit = Math.max(...opponentBenefits.map(b => b.benefit));
+    const highBenefitOpponents = opponentBenefits.filter(b => b.benefit >= 4);
+    
+    console.log(`   🔍 카드 ${currentCard} 경쟁 분석:`);
+    console.log(`   내 연결도: ${myConnectionValue}, 경쟁자 수: ${totalCompetitors}, 경쟁 강도: ${competitionLevel}`);
+    console.log(`   원하는 상대: ${competitorsWhoWant.map(c => `${c.player.nickname}(${c.wantLevel})`).join(', ')}`);
+    
+    // === 결정 로직 ===
+    
+    // 강제 가져가기 상황
+    let shouldForceTake = false;
+    let competitionBonus = 0;
+    let forceReason = '';
+    
+    // 1) 내가 직접연결이고 상대방도 원하는 경우 - 무조건 가져가기
+    if (myConnectionValue >= 3 && totalCompetitors > 0) {
+      shouldForceTake = true;
+      competitionBonus = 8; // 큰 손실까지 감수
+      forceReason = `내 직접연결+${totalCompetitors}명 경쟁`;
+    }
+    // 2) 내가 간접연결이고 상대방이 직접연결 가능한 경우
+    else if (myConnectionValue >= 1 && competitorsWhoWant.some(c => c.wantLevel >= 3)) {
+      shouldForceTake = true;
+      competitionBonus = 5;
+      forceReason = `상대 직접연결 차단`;
+    }
+    // 3) 여러 상대방이 원하는 카드인 경우
+    else if (totalCompetitors >= 2) {
+      shouldForceTake = true;
+      competitionBonus = 3;
+      forceReason = `${totalCompetitors}명 경쟁차단`;
+    }
+    
+    // 가져가지 말아야 할 상황
+    let shouldAvoidTake = false;
+    let avoidReason = '';
+    
+    // 1) 내게는 별 이익이 없는데 상대방에게 큰 이익이 되는 경우
+    if (myConnectionValue === 0 && highBenefitOpponents.length > 0 && currentCard >= 20) {
+      shouldAvoidTake = true;
+      avoidReason = `상대에게 ${highBenefitOpponents[0].player.nickname} 큰 이익 제공`;
+    }
+    
+    return {
+      shouldForceTake,
+      shouldAvoidTake,
+      competitionBonus,
+      competitionLevel,
+      totalCompetitors,
+      reason: shouldForceTake ? forceReason : avoidReason,
+      competitorsWhoWant
+    };
+  }
+  
   // === 도우미 메서드들 ===
   
   hasConnection(currentCard) {
@@ -1130,6 +1539,57 @@ class Bot {
   isCurrentlyLeading(players) {
     const myScore = this.calculateCurrentScore();
     return players.every(p => p.id === this.id || this.calculatePlayerScore(p) >= myScore);
+  }
+  
+  /**
+   * 인간 플레이어가 특정 카드를 원하는 정도를 추정 (0-3 스케일)
+   */
+  estimateHumanPlayerWant(player, currentCard) {
+    if (!player || player.isBot) return 0;
+    
+    let wantLevel = 0;
+    
+    // 1. 관찰된 패턴 분석
+    const recentActions = this.playerRelations[player.id]?.observedPatterns || [];
+    const recentTakes = recentActions.filter(action => action.type === 'take').slice(-5);
+    
+    if (recentTakes.length > 0) {
+      const takenCards = recentTakes.map(action => action.card);
+      
+      // 직접 연결 가능성 체크
+      const hasDirectConnection = takenCards.some(card => Math.abs(card - currentCard) === 1);
+      if (hasDirectConnection) {
+        console.log(`   🎯 ${player.nickname}: 직접연결 추정 (${currentCard}와 인접한 ${takenCards.filter(c => Math.abs(c - currentCard) === 1).join(',')} 보유 추정)`);
+        return 3; // 직접 연결은 최고 우선순위
+      }
+      
+      // 간접 연결 가능성 체크
+      const hasIndirectConnection = takenCards.some(card => Math.abs(card - currentCard) === 2);
+      if (hasIndirectConnection) {
+        console.log(`   🎯 ${player.nickname}: 간접연결 추정 (${currentCard}와 2칸 차이인 ${takenCards.filter(c => Math.abs(c - currentCard) === 2).join(',')} 보유 추정)`);
+        wantLevel = Math.max(wantLevel, 2);
+      }
+      
+      // 유사한 범위의 카드를 자주 가져가는 패턴
+      const similarRangeCards = takenCards.filter(card => Math.abs(card - currentCard) <= 4);
+      if (similarRangeCards.length >= 2) {
+        console.log(`   🎯 ${player.nickname}: 유사범위 패턴 (${currentCard} 주변 ${similarRangeCards.join(',')} 수집 패턴)`);
+        wantLevel = Math.max(wantLevel, 1);
+      }
+    }
+    
+    // 2. 카드 가치 기반 일반적 선호도
+    if (wantLevel === 0) {
+      if (currentCard <= 10) {
+        wantLevel = 1; // 낮은 카드는 누구나 원함
+      } else if (currentCard <= 20) {
+        wantLevel = Math.random() < 0.3 ? 1 : 0; // 중간 카드는 30% 확률
+      } else {
+        wantLevel = Math.random() < 0.1 ? 1 : 0; // 높은 카드는 10% 확률
+      }
+    }
+    
+    return wantLevel;
   }
   
   wouldPlayerWantCard(player, currentCard) {
@@ -1150,30 +1610,8 @@ class Bot {
       return Math.random() < 0.2;
     }
     
-    // 인간 플레이어인 경우: 관찰된 행동 패턴과 게임 진행 상황으로 추측
-    // 1. 해당 플레이어가 최근에 비슷한 카드를 가져갔는지 확인
-    const recentActions = this.playerRelations[player.id]?.observedPatterns || [];
-    const recentTakes = recentActions.filter(action => action.type === 'take').slice(-3);
-    
-    // 2. 가져간 카드들로부터 패턴 추측
-    if (recentTakes.length > 0) {
-      const takenCards = recentTakes.map(action => action.card);
-      const hasNearbyCard = takenCards.some(card => Math.abs(card - currentCard) <= 3);
-      
-      if (hasNearbyCard) {
-        console.log(`   🔍 ${player.nickname}이(가) 최근 ${takenCards.join(',')} 카드를 가져가서 ${currentCard}를 원할 가능성 높음`);
-        return true;
-      }
-    }
-    
-    // 3. 일반적인 카드 가치 기준으로 추측 (낮은 카드는 누구나 원함)
-    if (currentCard <= 10) {
-      return Math.random() < 0.7; // 70% 확률로 원한다고 가정
-    } else if (currentCard <= 20) {
-      return Math.random() < 0.4; // 40% 확률
-    } else {
-      return Math.random() < 0.2; // 20% 확률
-    }
+    // 인간 플레이어는 새로운 추정 함수 사용
+    return this.estimateHumanPlayerWant(player, currentCard) > 0;
   }
   
   findVengefulTarget(players) {

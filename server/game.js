@@ -90,10 +90,15 @@ class Game {
     // Remove the player
     this.players.splice(idx, 1);
     
-    // 방장이 나갔으면 다른 사람(봇 아닌)에게 양도
+    // 방장이 나갔으면 다른 인간 플레이어에게 양도
     if (wasHost && this.players.length > 0) {
       const nextHost = this.players.find(p => !p.isBot);
-      this.hostId = nextHost ? nextHost.id : this.players[0].id;
+      if (nextHost) {
+        this.hostId = nextHost.id;
+      } else {
+        // 인간 플레이어가 없으면 방장을 null로 설정 (AI는 방장이 될 수 없음)
+        this.hostId = null;
+      }
     }
     
     // Adjust currentPlayerIndex if the removed player was ahead
@@ -407,9 +412,15 @@ class Game {
       cards: []
     }));
     
-    // 방장이 봇이었거나 인간 플레이어가 없으면 첫 번째 인간 플레이어를 방장으로 설정
-    const hostExists = this.players.find(p => p.id === savedHostId);
-    this.hostId = hostExists ? savedHostId : (this.players[0]?.id || null);
+    // 방장 설정: 기존 방장이 있으면 유지, 없으면 첫 번째 인간 플레이어를 방장으로 설정
+    const hostExists = this.players.find(p => p.id === savedHostId && !p.isBot);
+    if (hostExists) {
+      this.hostId = savedHostId;
+    } else {
+      // 기존 방장이 없거나 봇이면 첫 번째 인간 플레이어를 방장으로 설정
+      const firstHuman = this.players.find(p => !p.isBot);
+      this.hostId = firstHuman ? firstHuman.id : null;
+    }
     
     // 게임 설정을 기본값으로 초기화
     this.gameSettings = {
@@ -448,6 +459,7 @@ class Game {
       currentPlayerId: this.players[this.currentPlayerIndex]?.id ?? null,
       deckSize: this.deck.length,
       removedCount: this.removedCards.length, // 실제 제거된 카드 수
+      removedCards: this.removedCards, // AI 전략을 위한 삭제된 카드 정보
       started: this.started,
       hostId: this.hostId,
       gameSettings: this.gameSettings,
