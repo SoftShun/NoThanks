@@ -235,6 +235,45 @@ body {
   100% { transform: translateY(-12px) scale(0.94) rotate(-2deg); opacity: 0.4; }
 }
 
+/* 히든 카드 스타일 */
+.card.hidden-card {
+  background: linear-gradient(160deg, #4f46e5, #6366f1);
+  border-color: #4338ca;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.card.hidden-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+.card.hidden-card .value {
+  color: white;
+  font-size: clamp(32px, 12vw, 56px);
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.hidden-indicator {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
 /* 모바일 우선 카드 숫자 */
 .card .value {
   font-size: clamp(28px, 10vw, 48px);

@@ -338,6 +338,70 @@ const GamePage: React.FC = () => {
               <div className="help">각 플레이어가 시작 시 보유하는 토큰 수 (기본 11)</div>
             </div>
             <div className="field">
+              <label className="field-label" htmlFor="gameMode">게임 모드</label>
+              <select 
+                id="gameMode" 
+                className="input" 
+                value={settings.gameMode || 'normal'} 
+                onChange={(e) => updateSettings({ gameMode: e.target.value })}
+                disabled={!isHost}
+              >
+                <option value="normal">일반 모드</option>
+                <option value="hidden">히든 모드</option>
+              </select>
+              <div className="help">일반: 모든 카드 공개 | 히든: 일부 카드가 '?'로 표시</div>
+            </div>
+            {settings.gameMode === 'hidden' && (
+              <div className="field">
+                <label className="field-label" htmlFor="hiddenCount">히든 카드 개수</label>
+                <div className="input-with-controls">
+                  <button
+                    type="button"
+                    className="btn sm input-control-btn"
+                    onClick={() => adjustValue('hiddenCardCount', settings.hiddenCardCount || 3, -1, 1, 5)}
+                    disabled={!isHost || (settings.hiddenCardCount || 3) <= 1}
+                    aria-label="히든 카드 개수 감소"
+                  >
+                    −
+                  </button>
+                  <input
+                    id="hiddenCount"
+                    type="number"
+                    inputMode="numeric"
+                    value={settings.hiddenCardCount || 3}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      if (e.target.value === '') {
+                        return;
+                      }
+                      validateAndUpdate('hiddenCardCount', value, 1, 5, '히든 카드 개수');
+                    }}
+                    onBlur={(e) => {
+                      if (e.target.value === '') {
+                        updateSettings({ hiddenCardCount: 3 });
+                      }
+                    }}
+                    aria-label="히든 카드 개수 (1–5)"
+                    className={`input ${inputErrors.hiddenCardCount ? 'input-error' : ''}`}
+                    disabled={!isHost}
+                  />
+                  <button
+                    type="button"
+                    className="btn sm input-control-btn"
+                    onClick={() => adjustValue('hiddenCardCount', settings.hiddenCardCount || 3, 1, 1, 5)}
+                    disabled={!isHost || (settings.hiddenCardCount || 3) >= 5}
+                    aria-label="히든 카드 개수 증가"
+                  >
+                    +
+                  </button>
+                </div>
+                {inputErrors.hiddenCardCount && (
+                  <div className="error-message">{inputErrors.hiddenCardCount}</div>
+                )}
+                <div className="help">히든('?')으로 표시될 카드의 개수 (1-5개)</div>
+              </div>
+            )}
+            <div className="field">
               <label className="field-label" htmlFor="showTokens">상대 토큰 공개</label>
               <select 
                 id="showTokens" 
@@ -513,9 +577,16 @@ const GamePage: React.FC = () => {
       <div className="row">
         <div className="panel">
           <div className="current-card">
-            <div className={`card ${takeAnimKey ? 'take-lift' : ''}`} aria-label="현재 카드" key={`card-${state.currentCard}-${takeAnimKey}`} onAnimationEnd={() => setTakeAnimKey(0)}>
-              <div className="value flip-in">{state.currentCard ?? '–'}</div>
+            <div className={`card ${takeAnimKey ? 'take-lift' : ''} ${state.isCurrentCardHidden ? 'hidden-card' : ''}`} aria-label="현재 카드" key={`card-${state.currentCard}-${takeAnimKey}`} onAnimationEnd={() => setTakeAnimKey(0)}>
+              <div className="value flip-in">
+                {state.isCurrentCardHidden ? '?' : (state.currentCard ?? '–')}
+              </div>
               {chipAnim > 0 && <div className="chip-fly" onAnimationEnd={() => setChipAnim(0)} />}
+              {state.isCurrentCardHidden && (
+                <div className="hidden-indicator" title="히든 카드">
+                  🎭
+                </div>
+              )}
             </div>
             <div className="pile-badge" aria-label={`카드 위 토큰 ${state.pileTokens}개`}>
               <RiCoinLine style={{ color: 'var(--chip)', fontSize: '1.2em' }} aria-hidden />
@@ -525,6 +596,9 @@ const GamePage: React.FC = () => {
           <div className="meta" style={{ marginTop: 10 }}>
             <span>덱 남은 카드: {state.deckSize}</span>
             <span>제거된 카드 수: {state.removedCount}</span>
+            {settings.gameMode === 'hidden' && (
+              <span>히든 카드: {state.revealedCardsCount || 0}/{state.hiddenCardsTotal || 0} 공개</span>
+            )}
           </div>
           <div className="controls" style={{ marginTop: 12 }}>
             <button 

@@ -40,13 +40,19 @@ class Game {
     this.currentPlayerIndex = 0;
     this.started = false;
     
+    // 히든 모드 관련 상태
+    this.hiddenCards = new Set(); // 히든으로 설정된 카드들
+    this.revealedCards = new Set(); // 공개된 히든 카드들
+    
     // 게임 설정 (기본값)
     this.gameSettings = {
       removedCount: 9,           // 제거할 카드 수
       initialTokens: 11,         // 초기 토큰 수  
       showOpponentTokens: false, // 상대 토큰 공개 (기본값: 비공개)
       showRealTimeScore: true,   // 게임 중 실시간 점수 표시
-      turnTimeLimit: 30          // 턴 시간 제한 (초, 0=무제한)
+      turnTimeLimit: 30,         // 턴 시간 제한 (초, 0=무제한)
+      gameMode: 'normal',        // 게임 모드 ('normal' | 'hidden')
+      hiddenCardCount: 3         // 히든 카드 개수 (1-5)
     };
     
     // 방장 및 턴 관리
@@ -138,6 +144,13 @@ class Game {
     this.removedCards = deck.splice(0, this.gameSettings.removedCount);
     this.deck = deck;
     
+    // 히든 모드인 경우 히든 카드 선택
+    this.hiddenCards = new Set();
+    this.revealedCards = new Set();
+    if (this.gameSettings.gameMode === 'hidden') {
+      this.selectHiddenCards();
+    }
+    
     // 매 게임마다 플레이어 순서를 완전 랜덤으로 섞음
     this.shufflePlayerOrder();
     
@@ -212,6 +225,10 @@ class Game {
     }
     // Add card to player
     if (this.currentCard != null) {
+      // 히든 카드인 경우 공개 처리
+      if (this.hiddenCards.has(this.currentCard)) {
+        this.revealedCards.add(this.currentCard);
+      }
       player.cards.push(this.currentCard);
     }
     // Collect pile tokens
@@ -284,6 +301,14 @@ class Game {
     }
     if (this.gameSettings.turnTimeLimit !== undefined) {
       this.gameSettings.turnTimeLimit = Math.max(0, Math.min(300, this.gameSettings.turnTimeLimit));
+    }
+    if (this.gameSettings.gameMode !== undefined) {
+      if (!['normal', 'hidden'].includes(this.gameSettings.gameMode)) {
+        this.gameSettings.gameMode = 'normal';
+      }
+    }
+    if (this.gameSettings.hiddenCardCount !== undefined) {
+      this.gameSettings.hiddenCardCount = Math.max(1, Math.min(5, this.gameSettings.hiddenCardCount));
     }
     
     return true;
@@ -396,6 +421,28 @@ class Game {
   }
 
   /**
+   * 히든 카드들을 랜덤으로 선택합니다.
+   * 제거되지 않은 카드 중에서 설정된 개수만큼 선택
+   */
+  selectHiddenCards() {
+    const availableCards = [...this.deck]; // 제거되지 않은 카드들
+    const hiddenCount = Math.min(this.gameSettings.hiddenCardCount, availableCards.length);
+    
+    // 피셔-예이츠 셔플로 랜덤하게 선택
+    for (let i = 0; i < hiddenCount; i++) {
+      const randomIndex = Math.floor(CryptoRandom.enhancedRandom() * (availableCards.length - i));
+      const selectedCard = availableCards[randomIndex];
+      
+      // 선택된 카드를 히든 카드로 설정
+      this.hiddenCards.add(selectedCard);
+      
+      // 선택된 카드를 맨 뒤로 이동하여 중복 선택 방지
+      [availableCards[randomIndex], availableCards[availableCards.length - 1 - i]] = 
+        [availableCards[availableCards.length - 1 - i], availableCards[randomIndex]];
+    }
+  }
+
+  /**
    * 턴 타이머를 시작합니다.
    * @param {Function} onTimeout 시간 초과 시 실행될 콜백
    */
@@ -439,6 +486,10 @@ class Game {
     this.started = false;
     this.clearTurnTimer();
     
+    // 히든 모드 상태 초기화
+    this.hiddenCards = new Set();
+    this.revealedCards = new Set();
+    
     // 인간 플레이어들의 카드와 토큰만 초기화
     this.players = humanPlayers.map(p => ({
       ...p,
@@ -462,7 +513,9 @@ class Game {
       initialTokens: 11,
       showOpponentTokens: false,
       showRealTimeScore: true,
-      turnTimeLimit: 30
+      turnTimeLimit: 30,
+      gameMode: 'normal',
+      hiddenCardCount: 3
     };
   }
 
@@ -498,6 +551,10 @@ class Game {
       hostId: this.hostId,
       gameSettings: this.gameSettings,
       turnStartTime: this.turnStartTime,
+      // 히든 모드 관련 정보
+      isCurrentCardHidden: this.hiddenCards.has(this.currentCard) && !this.revealedCards.has(this.currentCard),
+      hiddenCardsTotal: this.hiddenCards.size,
+      revealedCardsCount: this.revealedCards.size,
     };
   }
 }

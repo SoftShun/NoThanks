@@ -78,12 +78,17 @@ class Bot {
    */
   makeDecision(gameState) {
     try {
-      const { currentCard, pileTokens, players } = gameState;
+      const { currentCard, pileTokens, players, isCurrentCardHidden } = gameState;
       
       // 입력 유효성 검사
       if (typeof currentCard !== 'number' || typeof pileTokens !== 'number' || !Array.isArray(players)) {
         console.error(`⚠️ ${this.nickname}: 잘못된 게임 상태 데이터`);
         return 'pass'; // 안전한 기본값
+      }
+      
+      // 히든 카드 처리
+      if (isCurrentCardHidden) {
+        return this.makeHiddenCardDecision(currentCard, pileTokens, gameState);
       }
       
       console.log(`\n🧠 ${this.nickname} [${this.difficulty}] 의사결정 시작:`);
@@ -1734,6 +1739,131 @@ class Bot {
       relations: this.playerRelations,
       recentEvents: this.gameEvents.slice(-3)
     };
+  }
+
+  /**
+   * 히든 카드에 대한 특별한 의사결정 로직
+   * 불확실성 하에서의 확률적 판단
+   */
+  makeHiddenCardDecision(currentCard, pileTokens, gameState) {
+    console.log(`\n🎭 ${this.nickname} [${this.difficulty}] 히든 카드 의사결정:`);
+    console.log(`   히든 카드: ?, 칩: ${pileTokens}, 내 토큰: ${this.tokens}`);
+    
+    // 토큰 부족시 강제 취득
+    if (this.tokens <= 0) {
+      console.log(`   🔥 강제 취득: 토큰 없음`);
+      return 'take';
+    }
+    
+    // 히든 카드 예상 가치 계산
+    const expectedValue = this.calculateHiddenCardValue(gameState);
+    const tokensGained = pileTokens;
+    const riskTolerance = this.calculateHiddenRiskTolerance(gameState);
+    
+    console.log(`   📊 예상 가치: ${expectedValue.toFixed(1)}점`);
+    console.log(`   💰 칩 보상: ${tokensGained}개`);
+    console.log(`   🎲 위험 허용도: ${(riskTolerance * 100).toFixed(0)}%`);
+    
+    // 기본 판단: 칩이 예상 손실보다 많으면 가져가기
+    const netValue = tokensGained - expectedValue;
+    console.log(`   ⚖️ 순 가치: ${netValue.toFixed(1)} (${tokensGained}칩 - ${expectedValue.toFixed(1)}예상점수)`);
+    
+    // 감정적 요소 적용
+    const emotionalBonus = this.getHiddenCardEmotionalBonus(gameState);
+    const finalValue = netValue + emotionalBonus;
+    
+    console.log(`   💭 감정 보정: +${emotionalBonus.toFixed(1)} → 최종: ${finalValue.toFixed(1)}`);
+    
+    // 의사결정 임계값 (난이도별)
+    let threshold = 0;
+    switch(this.difficulty) {
+      case 'expert': threshold = -1; break;   // 더 적극적
+      case 'hard': threshold = 0; break;      // 균형잡힌
+      case 'medium': threshold = 1; break;    // 조금 보수적
+    }
+    
+    const decision = finalValue >= threshold ? 'take' : 'pass';
+    console.log(`   🎯 최종 결정: ${decision} (기준: ${threshold}, 실제: ${finalValue.toFixed(1)}) 🎭\n`);
+    
+    return decision;
+  }
+
+  /**
+   * 히든 카드의 예상 가치 계산
+   */
+  calculateHiddenCardValue(gameState) {
+    const { removedCards = [], deckSize = 24 } = gameState;
+    
+    // 제거되지 않은 카드들의 범위에서 평균값 계산
+    const allCards = [];
+    for (let i = 3; i <= 35; i++) {
+      if (!removedCards.includes(i)) {
+        allCards.push(i);
+      }
+    }
+    
+    // 이미 플레이어들이 가진 카드 제외
+    const playersCards = gameState.players.flatMap(p => p.cards || []);
+    const availableCards = allCards.filter(card => !playersCards.includes(card));
+    
+    if (availableCards.length === 0) return 15; // 기본값
+    
+    // 가중 평균 계산 (높은 카드에 약간 더 가중치)
+    const weightedSum = availableCards.reduce((sum, card) => {
+      const weight = card > 20 ? 1.2 : 1.0; // 20 이상 카드에 20% 가중치
+      return sum + (card * weight);
+    }, 0);
+    
+    const totalWeight = availableCards.reduce((sum, card) => {
+      return sum + (card > 20 ? 1.2 : 1.0);
+    }, 0);
+    
+    return weightedSum / totalWeight;
+  }
+
+  /**
+   * 히든 카드에 대한 위험 허용도 계산
+   */
+  calculateHiddenRiskTolerance(gameState) {
+    let tolerance = 0.5; // 기본 50%
+    
+    // 감정 상태 영향
+    tolerance += this.emotionalState.confidence * 0.3;
+    tolerance += this.emotionalState.greed * 0.2;
+    tolerance -= this.emotionalState.frustration * 0.3;
+    
+    // 게임 상황 영향
+    const situation = this.analyzeGameSituation(gameState);
+    if (situation.isLastPlace) tolerance += 0.2; // 꼴찌면 더 위험 감수
+    if (situation.isLeading) tolerance -= 0.1;   // 선두면 조금 보수적
+    
+    // 토큰 상황 영향
+    if (this.tokens > 8) tolerance += 0.1;      // 토큰 많으면 여유
+    if (this.tokens < 3) tolerance -= 0.2;      // 토큰 적으면 신중
+    
+    return Math.max(0.1, Math.min(0.9, tolerance));
+  }
+
+  /**
+   * 히든 카드에 대한 감정적 보너스/패널티
+   */
+  getHiddenCardEmotionalBonus(gameState) {
+    let bonus = 0;
+    
+    // 도박꾼 성향
+    if (this.emotionalState.greed > 0.7) bonus += 1;
+    
+    // 자신감 영향
+    bonus += (this.emotionalState.confidence - 0.5) * 2;
+    
+    // 좌절감이 높으면 무모한 선택
+    if (this.emotionalState.frustration > 0.6) bonus += 1.5;
+    
+    // 게임 후반부에는 더 적극적
+    const gameProgress = (35 - gameState.deckSize) / 24;
+    if (gameProgress > 0.7) bonus += 1;
+    
+    return bonus;
   }
 }
 
