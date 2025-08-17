@@ -21,6 +21,7 @@
  */
 
 const Bot = require('./bot');
+const CryptoRandom = require('./crypto-random');
 
 class Game {
   constructor() {
@@ -127,9 +128,9 @@ class Game {
     const deck = [];
     for (let i = 3; i <= 35; i++) deck.push(i);
     
-    // Shuffle deck
+    // Shuffle deck using crypto-based randomness
     for (let i = deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(CryptoRandom.enhancedRandom() * (i + 1));
       [deck[i], deck[j]] = [deck[j], deck[i]];
     }
     
@@ -389,7 +390,7 @@ class Game {
    */
   shufflePlayerOrder() {
     for (let i = this.players.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(CryptoRandom.enhancedRandom() * (i + 1));
       [this.players[i], this.players[j]] = [this.players[j], this.players[i]];
     }
   }
