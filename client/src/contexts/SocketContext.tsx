@@ -183,9 +183,14 @@ export const SocketProvider: React.FC<ProviderProps> = ({
     socket.emit('removeBot', botId);
   }, [socket]);
 
+  const changeNickname = React.useCallback((newNickname: string) => {
+    if (!socket) return;
+    socket.emit('changeNickname', newNickname);
+  }, [socket]);
+
   const value = useMemo(
-    () => ({ socket, state, error, clearError: () => setError(null), pass, take, startGame, updateSettings, transferHost, addBot, removeBot }),
-    [socket, state, error, pass, take, startGame, updateSettings, transferHost, addBot, removeBot],
+    () => ({ socket, state, error, clearError: () => setError(null), pass, take, startGame, updateSettings, transferHost, addBot, removeBot, changeNickname }),
+    [socket, state, error, pass, take, startGame, updateSettings, transferHost, addBot, removeBot, changeNickname],
   );
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
 };

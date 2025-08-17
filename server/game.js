@@ -43,7 +43,7 @@ class Game {
     this.gameSettings = {
       removedCount: 9,           // 제거할 카드 수
       initialTokens: 11,         // 초기 토큰 수  
-      showOpponentTokens: true,  // 상대 토큰 공개
+      showOpponentTokens: false, // 상대 토큰 공개 (기본값: 비공개)
       showRealTimeScore: true,   // 게임 중 실시간 점수 표시
       turnTimeLimit: 30          // 턴 시간 제한 (초, 0=무제한)
     };
@@ -302,6 +302,39 @@ class Game {
   }
 
   /**
+   * 플레이어 닉네임 변경
+   * @param {string} playerId 플레이어 ID
+   * @param {string} newNickname 새 닉네임
+   */
+  changeNickname(playerId, newNickname) {
+    if (this.started) return { success: false, error: '게임 중에는 닉네임을 변경할 수 없습니다.' };
+    
+    // 닉네임 유효성 검사
+    if (!newNickname || typeof newNickname !== 'string' || newNickname.trim().length === 0) {
+      return { success: false, error: '유효하지 않은 닉네임입니다.' };
+    }
+    
+    const trimmedNickname = newNickname.trim();
+    if (trimmedNickname.length > 20) {
+      return { success: false, error: '닉네임은 20자를 초과할 수 없습니다.' };
+    }
+    
+    // 중복 닉네임 검사
+    if (this.players.find(p => p.id !== playerId && p.nickname === trimmedNickname)) {
+      return { success: false, error: '이미 사용 중인 닉네임입니다.' };
+    }
+    
+    // 플레이어 찾기 및 닉네임 변경
+    const player = this.players.find(p => p.id === playerId);
+    if (!player) {
+      return { success: false, error: '플레이어를 찾을 수 없습니다.' };
+    }
+    
+    player.nickname = trimmedNickname;
+    return { success: true };
+  }
+
+  /**
    * 게임 종료 후 플레이어 목록을 유지하고 게임 데이터만 초기화
    */
   /**
@@ -426,7 +459,7 @@ class Game {
     this.gameSettings = {
       removedCount: 9,
       initialTokens: 11,
-      showOpponentTokens: true,
+      showOpponentTokens: false,
       showRealTimeScore: true,
       turnTimeLimit: 30
     };

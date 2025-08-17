@@ -42,7 +42,7 @@ const groupConsecutiveCards = (cards: number[]): number[][] => {
  * current game state and to send player actions to the server.
  */
 const GamePage: React.FC = () => {
-  const { socket, state, pass, take, startGame, updateSettings, transferHost, addBot, removeBot, error, clearError } = useSocket();
+  const { socket, state, pass, take, startGame, updateSettings, transferHost, addBot, removeBot, changeNickname, error, clearError } = useSocket();
   const yourId = socket?.id;
   // 버튼 로딩 상태는 훅 규칙을 지키기 위해 컴포넌트 최상단에 선언
   const [starting, setStarting] = useState(false);
@@ -50,6 +50,10 @@ const GamePage: React.FC = () => {
   const [takeAnimKey, setTakeAnimKey] = useState(0);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [selectedBotDifficulty, setSelectedBotDifficulty] = useState<string>('medium');
+  
+  // 닉네임 변경 상태
+  const [isEditingNickname, setIsEditingNickname] = useState(false);
+  const [newNickname, setNewNickname] = useState('');
   
   // 게임 설정 입력 검증 상태
   const [inputErrors, setInputErrors] = useState<{[key: string]: string}>({});
@@ -74,6 +78,24 @@ const GamePage: React.FC = () => {
   const adjustValue = (field: string, currentValue: number, delta: number, min: number, max: number) => {
     const newValue = Math.max(min, Math.min(max, currentValue + delta));
     updateSettings({ [field]: newValue });
+  };
+
+  // 닉네임 변경 핸들러
+  const handleNicknameChange = () => {
+    if (!newNickname.trim()) {
+      setIsEditingNickname(false);
+      return;
+    }
+    
+    changeNickname(newNickname.trim());
+    setIsEditingNickname(false);
+    setNewNickname('');
+  };
+
+  const startEditingNickname = () => {
+    const currentPlayer = state?.players.find(p => p.id === yourId);
+    setNewNickname(currentPlayer?.nickname || '');
+    setIsEditingNickname(true);
   };
 
   // 현재 설정을 가져옴 (서버에서 받은 설정 사용) - Hook 순서 보장을 위해 최상단에 선언
@@ -168,7 +190,46 @@ const GamePage: React.FC = () => {
             {state.players.map((p) => (
               <div key={p.id} className="player" aria-label={`${p.nickname}${state.hostId === p.id ? ' 방장' : ''}`}>
                 <div className="name">
-                  <span>{p.nickname}</span>
+                  {p.id === yourId && isEditingNickname ? (
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        value={newNickname}
+                        onChange={(e) => setNewNickname(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleNicknameChange();
+                          if (e.key === 'Escape') {
+                            setIsEditingNickname(false);
+                            setNewNickname('');
+                          }
+                        }}
+                        onBlur={handleNicknameChange}
+                        autoFocus
+                        maxLength={20}
+                        className="input"
+                        style={{ fontSize: '0.9em', padding: '4px 8px', minWidth: '100px' }}
+                        placeholder="닉네임 입력"
+                      />
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>{p.nickname}</span>
+                      {p.id === yourId && (
+                        <button
+                          onClick={startEditingNickname}
+                          className="btn sm"
+                          style={{ 
+                            fontSize: '0.75em', 
+                            padding: '2px 6px',
+                            opacity: 0.7
+                          }}
+                          title="닉네임 변경"
+                        >
+                          ✏️
+                        </button>
+                      )}
+                    </div>
+                  )}
                   {state.hostId === p.id && <span className="badge">방장</span>}
                 </div>
               </div>

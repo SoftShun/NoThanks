@@ -486,6 +486,19 @@ io.on('connection', (socket) => {
   });
 
   /**
+   * 닉네임 변경
+   */
+  socket.on('changeNickname', (newNickname) => {
+    const result = game.changeNickname(socket.id, newNickname);
+    if (!result.success) {
+      socket.emit('gameError', { message: result.error });
+      return;
+    }
+    
+    broadcastState();
+  });
+
+  /**
    * Handle a player disconnecting. Remove them from the game and
    * broadcast the updated state. If only one player remains after
    * the disconnect, the game ends immediately. If only AI bots remain,
