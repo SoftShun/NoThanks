@@ -70,8 +70,23 @@ class Game {
   addPlayer(id, nickname) {
     if (this.started) return false;
     if (this.players.length >= 7) return false; // 최대 7명으로 확장
-    // prevent duplicate nicknames
+    
+    // 기존에 같은 닉네임의 플레이어가 있는지 확인 (재연결 시도)
+    const existingPlayer = this.players.find((p) => p.nickname === nickname && !p.isBot);
+    if (existingPlayer) {
+      // 기존 플레이어의 소켓 ID만 업데이트 (재연결)
+      existingPlayer.id = id;
+      
+      // 기존 플레이어가 방장이었다면 방장 ID 업데이트
+      if (this.hostId === existingPlayer.id || this.hostId === undefined) {
+        this.hostId = id;
+      }
+      return true;
+    }
+    
+    // 중복 닉네임 검사 (다른 활성 플레이어와 중복 방지)
     if (this.players.find((p) => p.nickname === nickname)) return false;
+    
     this.players.push({ id, nickname, tokens: 0, cards: [], isBot: false });
     
     // 첫 번째 플레이어가 방장이 됨

@@ -43,6 +43,7 @@ interface SocketContextValue {
   transferHost: (newHostId: string) => void;
   addBot: (difficulty: string) => void;
   removeBot: (botId: string) => void;
+  changeNickname: (newNickname: string) => void;
 }
 
 const SocketContext = createContext<SocketContextValue | undefined>(undefined);
@@ -87,6 +88,11 @@ export const SocketProvider: React.FC<ProviderProps> = ({
   const [socket, setSocket] = useState<Socket | null>(null);
   const [state, setState] = useState<GameState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [currentNickname, setCurrentNickname] = useState<string>(() => {
+    // 저장된 닉네임이 있으면 사용, 없으면 전달받은 nickname 사용
+    const saved = localStorage.getItem('nothanks_current_nickname');
+    return saved || nickname;
+  });
   const onGameEndRef = useRef<((results: any[]) => void) | undefined>(onGameEnd);
   const connectedRef = useRef<boolean>(false);
 
@@ -104,6 +110,14 @@ export const SocketProvider: React.FC<ProviderProps> = ({
     // Listen for server events
     s.on('gameState', (data: GameState) => {
       setState(data);
+      
+      // 현재 플레이어의 닉네임이 변경되었으면 localStorage에 저장
+      const myPlayer = data.players?.find(p => p.id === s.id);
+      if (myPlayer && myPlayer.nickname !== currentNickname) {
+        setCurrentNickname(myPlayer.nickname);
+        localStorage.setItem('nothanks_current_nickname', myPlayer.nickname);
+      }
+      
       // eslint-disable-next-line no-console
       console.log('[gameState]', data);
     });
@@ -120,8 +134,9 @@ export const SocketProvider: React.FC<ProviderProps> = ({
       setError(data?.message || '');
     });
     s.on('connect', () => {
-      // Send join request once connected
-      s.emit('join', { nickname });
+      // Send join request once connected (현재 저장된 닉네임 사용)
+      const savedNickname = localStorage.getItem('nothanks_current_nickname') || nickname;
+      s.emit('join', { nickname: savedNickname });
       setError(null); // 연결 성공 시 에러 상태 초기화
       // eslint-disable-next-line no-console
       console.log('[socket] connected to', serverUrl, s.id);
@@ -144,13 +159,13 @@ export const SocketProvider: React.FC<ProviderProps> = ({
   }, [nickname, serverUrl]);
 
   // Action wrappers
-  const pass = React.useCallback((callback?: () => void) => {
+  const pass = React.useCallback(() => {
     if (!socket) return;
-    socket.emit('pass', callback);
+    socket.emit('pass');
   }, [socket]);
-  const take = React.useCallback((callback?: () => void) => {
+  const take = React.useCallback(() => {
     if (!socket) return;
-    socket.emit('take', callback);
+    socket.emit('take');
   }, [socket]);
   const startGame = React.useCallback(() => {
     return new Promise<boolean>((resolve) => {

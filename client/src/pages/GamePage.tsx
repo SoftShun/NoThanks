@@ -574,6 +574,8 @@ const GamePage: React.FC = () => {
   const isYourTurn = state.currentPlayerId === yourId;
   const canPass = isYourTurn && (you?.tokens || 0) > 0;
 
+
+
   return (
     <div className="container" role="main">
       <div className={`turn-banner ${isYourTurn ? 'is-you' : ''}`} role="status" aria-live="polite" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
@@ -648,10 +650,12 @@ const GamePage: React.FC = () => {
                 
                 setIsProcessingAction(true);
                 setTakeAnimKey((k)=>k+1);
-                take(() => {
-                  // 서버 응답 받으면 즉시 처리 상태 해제
+                take();
+                
+                // 일정 시간 후 자동으로 처리 상태 해제 (서버 콜백이 없으므로)
+                setTimeout(() => {
                   setIsProcessingAction(false);
-                });
+                }, 1000);
               }} 
               disabled={!isYourTurn || isProcessingAction} 
               aria-disabled={!isYourTurn || isProcessingAction} 
@@ -679,10 +683,12 @@ const GamePage: React.FC = () => {
                 
                 setIsProcessingAction(true);
                 setChipAnim((k) => k + 1);
-                pass(() => {
-                  // 서버 응답 받으면 즉시 처리 상태 해제
+                pass();
+                
+                // 일정 시간 후 자동으로 처리 상태 해제 (서버 콜백이 없으므로)
+                setTimeout(() => {
                   setIsProcessingAction(false);
-                });
+                }, 1000);
               }} 
               disabled={!canPass || isProcessingAction} 
               aria-disabled={!canPass || isProcessingAction} 
