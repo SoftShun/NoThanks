@@ -144,13 +144,13 @@ export const SocketProvider: React.FC<ProviderProps> = ({
   }, [nickname, serverUrl]);
 
   // Action wrappers
-  const pass = React.useCallback(() => {
+  const pass = React.useCallback((callback?: () => void) => {
     if (!socket) return;
-    socket.emit('pass');
+    socket.emit('pass', callback);
   }, [socket]);
-  const take = React.useCallback(() => {
+  const take = React.useCallback((callback?: () => void) => {
     if (!socket) return;
-    socket.emit('take');
+    socket.emit('take', callback);
   }, [socket]);
   const startGame = React.useCallback(() => {
     return new Promise<boolean>((resolve) => {

@@ -59,6 +59,9 @@ const GamePage: React.FC = () => {
   const [hiddenRevealAnim, setHiddenRevealAnim] = useState(0);
   const [prevCardState, setPrevCardState] = useState<{card: number | null, hidden: boolean} | null>(null);
   
+  // 패스/테이크 버튼 연속 클릭 방지
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
+  
   // 게임 설정 입력 검증 상태
   const [inputErrors, setInputErrors] = useState<{[key: string]: string}>({});
   const [inputValues, setInputValues] = useState<{[key: string]: string}>({});
@@ -569,6 +572,7 @@ const GamePage: React.FC = () => {
   const currentPlayer = state.players.find((p) => p.id === state.currentPlayerId);
   const you = state.players.find((p) => p.id === yourId);
   const isYourTurn = state.currentPlayerId === yourId;
+  const canPass = isYourTurn && (you?.tokens || 0) > 0;
 
   return (
     <div className="container" role="main">
@@ -638,18 +642,26 @@ const GamePage: React.FC = () => {
           <div className="controls" style={{ marginTop: 12 }}>
             <button 
               className="btn primary sm" 
-              onClick={() => { 
-                setTakeAnimKey((k)=>k+1); 
-                take(); 
+              onClick={() => {
+                // 연속 클릭 방지
+                if (isProcessingAction || !isYourTurn) return;
+                
+                setIsProcessingAction(true);
+                setTakeAnimKey((k)=>k+1);
+                take(() => {
+                  // 서버 응답 받으면 즉시 처리 상태 해제
+                  setIsProcessingAction(false);
+                });
               }} 
-              disabled={!isYourTurn} 
-              aria-disabled={!isYourTurn} 
+              disabled={!isYourTurn || isProcessingAction} 
+              aria-disabled={!isYourTurn || isProcessingAction} 
               aria-label="카드 가져오기"
               style={{ 
                 background: isYourTurn 
                   ? 'linear-gradient(135deg, #0891b2, #0e7490)' 
                   : undefined,
                 borderColor: isYourTurn ? '#0891b2' : undefined,
+                opacity: isProcessingAction ? 0.7 : 1,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
@@ -661,19 +673,29 @@ const GamePage: React.FC = () => {
             </button>
             <button 
               className="btn sm" 
-              onClick={() => { 
-                setChipAnim((k) => k + 1); 
-                pass(); 
+              onClick={() => {
+                // 연속 클릭 방지 및 토큰 수 확인
+                if (isProcessingAction || !canPass) return;
+                
+                setIsProcessingAction(true);
+                setChipAnim((k) => k + 1);
+                pass(() => {
+                  // 서버 응답 받으면 즉시 처리 상태 해제
+                  setIsProcessingAction(false);
+                });
               }} 
-              disabled={!isYourTurn} 
-              aria-disabled={!isYourTurn} 
-              aria-label="패스"
+              disabled={!canPass || isProcessingAction} 
+              aria-disabled={!canPass || isProcessingAction} 
+              aria-label={!canPass && isYourTurn ? "토큰 부족으로 패스 불가" : "패스"}
               style={{
-                background: isYourTurn 
+                background: canPass 
                   ? 'linear-gradient(135deg, #64748b, #475569)' 
+                  : isYourTurn && (you?.tokens || 0) === 0
+                  ? 'linear-gradient(135deg, #ef4444, #dc2626)' // 토큰 부족 시 빨간색
                   : undefined,
-                borderColor: isYourTurn ? '#64748b' : undefined,
-                color: isYourTurn ? 'white' : undefined,
+                borderColor: canPass ? '#64748b' : isYourTurn ? '#ef4444' : undefined,
+                color: (canPass || (isYourTurn && (you?.tokens || 0) === 0)) ? 'white' : undefined,
+                opacity: isProcessingAction ? 0.7 : 1,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
@@ -681,7 +703,7 @@ const GamePage: React.FC = () => {
               }}
             >
               <HiOutlineXCircle style={{ fontSize: '1.1em' }} />
-              패스
+              {isYourTurn && (you?.tokens || 0) === 0 ? '토큰 없음' : '패스'}
             </button>
           </div>
         </div>
