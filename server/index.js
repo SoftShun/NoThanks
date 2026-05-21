@@ -593,7 +593,7 @@ io.on('connection', (socket) => {
 });
 
 // Provide a simple health check endpoint
-app.get('/', (req, res) => {
+app.get('/health', (req, res) => {
   res.json({ ok: true, players: game.players.length, started: game.started });
 });
 
