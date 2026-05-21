@@ -60,23 +60,12 @@ interface ProviderProps {
  * listens for game events. It exposes the current game state and
  * action functions to consumers via context.
  */
-// 환경에 따른 서버 URL 자동 설정
 const getDefaultServerUrl = () => {
-  // 현재 페이지의 hostname 확인
   const currentHost = window.location.hostname;
-  
-  // 로컬 개발 환경 (localhost, 127.0.0.1)
   if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
-    return 'http://localhost:3001';
+    return 'http://localhost:3002';
   }
-  
-  // 배포 환경 (43.201.36.137 또는 다른 IP)
-  if (currentHost === '43.201.36.137') {
-    return 'http://43.201.36.137:3001';
-  }
-  
-  // 기본값: 현재 호스트의 3001 포트 사용
-  return `http://${currentHost}:3001`;
+  return `http://${currentHost}:3002`;
 };
 
 export const SocketProvider: React.FC<ProviderProps> = ({
