@@ -1,0 +1,47 @@
+# Unity 생성 폴더
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+/WebBuild/
+
+# Unity 가 자동 생성하는 IDE 프로젝트 (dotnet/ 아래 수동 프로젝트는 제외)
+/*.csproj
+/*.sln
+/*.slnx
+/*.unityproj
+/*.pidb
+/*.booproj
+/*.suo
+/*.user
+/*.userprefs
+/.vs/
+/.vscode/
+/.idea/
+/.utmp/
+/.consulo/
+
+# 빌드 산출물
+*.apk
+*.aab
+*.unitypackage
+crashlytics-build.properties
+sysinfo.txt
+/[Aa]ssets/[Ss]treamingAssets/aa/*
+/[Aa]ssets/Plugins/Editor/JetBrains*
+
+# dotnet 테스트 프로젝트 산출물
+/dotnet/**/bin/
+/dotnet/**/obj/
+/dotnet/bin/
+/dotnet/obj/
+/dotnet/**/TestResults/
+
+# OS
+.DS_Store
+Thumbs.db

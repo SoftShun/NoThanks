@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Unity 밖에서 순수 C# 게임 로직(Assets/NoThanksProto/Core)을 빌드/테스트하기 위한 프로젝트.
+    Unity 와 같은 제약을 걸기 위해 netstandard2.1 + C# 9 로 컴파일한다 (UnityEngine 참조 없음).
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <RootNamespace>NoThanks.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Assets/NoThanksProto/Core/**/*.cs" />
+  </ItemGroup>
+</Project>
