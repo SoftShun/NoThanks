@@ -1,0 +1,82 @@
+{
+  "measuredAt": "2026-11-25T11:17:49.758Z",
+  "env": "headless Chromium (SwiftShader 소프트웨어 GL), Linux 컨테이너",
+  "build": {
+    "totalBytes": 4132381,
+    "jsBytes": 1058749,
+    "jsGzip": 328504,
+    "cssBytes": 68385,
+    "cssGzip": 19543,
+    "fontBytes": 3004236,
+    "fontFiles": 94,
+    "files": 106
+  },
+  "load_desktop_local": {
+    "dcl": 50.299999999813735,
+    "load": 51.10000000009313,
+    "fcp": null,
+    "transfer": 488642,
+    "requests": 17,
+    "wallToLobby": 193,
+    "tableReadyAfterStart": 654,
+    "transferAfterGame": 708386
+  },
+  "load_mobile_local": {
+    "dcl": 56.8000000002794,
+    "load": 56.8000000002794,
+    "fcp": 72,
+    "transfer": 488642,
+    "requests": 17,
+    "wallToLobby": 223,
+    "tableReadyAfterStart": 608,
+    "transferAfterGame": 708386
+  },
+  "load_mobile_fast3g": {
+    "dcl": 1052.6000000000931,
+    "load": 1052.6000000000931,
+    "fcp": 1072,
+    "transfer": 488642,
+    "requests": 17,
+    "wallToLobby": 2972,
+    "tableReadyAfterStart": 1302,
+    "transferAfterGame": 679762
+  },
+  "fps_desktop_1440": {
+    "avgFpsWhileAnimating": 17.9,
+    "p99FrameMs": 83.4,
+    "frames": 180,
+    "over33ms": 161,
+    "idleFps": 51.5,
+    "renderCallMedianMs": 0.5,
+    "renderCallP95Ms": 2.7,
+    "renders": 162
+  },
+  "fps_mobile_390": {
+    "avgFpsWhileAnimating": 12.1,
+    "p99FrameMs": 116.6,
+    "frames": 121,
+    "over33ms": 112,
+    "idleFps": 60.5,
+    "renderCallMedianMs": 0.6,
+    "renderCallP95Ms": 2.7,
+    "renders": 113
+  },
+  "input_0ms": {
+    "n": 12,
+    "inputToFrameMedianMs": 79.9,
+    "inputToFrameP95Ms": 164.5,
+    "serverConfirmMedianMs": 395
+  },
+  "input_100ms": {
+    "n": 12,
+    "inputToFrameMedianMs": 84.1,
+    "inputToFrameP95Ms": 137.8,
+    "serverConfirmMedianMs": 323
+  },
+  "input_300ms": {
+    "n": 12,
+    "inputToFrameMedianMs": 80.9,
+    "inputToFrameP95Ms": 141.5,
+    "serverConfirmMedianMs": 522
+  }
+}
