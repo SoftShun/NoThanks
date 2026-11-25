@@ -302,8 +302,9 @@ namespace NoThanks.Proto
 
         private void HookGameScreen()
         {
-            _game.OnTake = () => { if (_ctl != null) _ctl.Take(_game.TakeButton != null ? _game.TakeButton.LastPressTime : -1); };
-            _game.OnPass = () => { if (_ctl != null) _ctl.Pass(_game.PassButton != null ? _game.PassButton.LastPressTime : -1); };
+            // 측정 기준 = 클릭 확정 시각 (손가락을 누르고 있던 시간은 제외, 눌림 표현은 PointerDown 즉시)
+            _game.OnTake = () => { if (_ctl != null) _ctl.Take(-1); };
+            _game.OnPass = () => { if (_ctl != null) _ctl.Pass(-1); };
             _game.OnMenuToggle = ToggleMenu;
             _game.OnPerfToggle = () => _perfVisible = !_perfVisible;
             _game.OnLatencyPick = SetLatency;

@@ -151,7 +151,7 @@ namespace NoThanks.Proto
             var l = U.Text("≡", 20, Pal.BrassLight);
             b.Add(l);
             b.AddManipulator(new Clickable(() => { Sfx.Play(SfxId.Tap); if (OnMenuToggle != null) OnMenuToggle(); }));
-            b.RegisterCallback<PointerEnterEvent>(e => b.Bg(Pal.A(Pal.Brass, 0.15f)));
+            b.RegisterCallback<PointerEnterEvent>(e => { if (e.pointerType == UnityEngine.UIElements.PointerType.mouse) b.Bg(Pal.A(Pal.Brass, 0.15f)); });
             b.RegisterCallback<PointerLeaveEvent>(e => b.Bg(Pal.Clear));
             b.tooltip = "메뉴 (Esc)";
             return b;
@@ -225,8 +225,8 @@ namespace NoThanks.Proto
             _seats[s.Id] = v;
             if (!me)
             {
-                v.RegisterCallback<PointerEnterEvent>(e => { v.style.borderTopColor = Pal.A(Pal.Brass, 0.5f); });
-                v.RegisterCallback<PointerLeaveEvent>(e => { v.style.borderTopColor = Pal.A(Pal.Brass, 0.18f); });
+                v.RegisterCallback<PointerEnterEvent>(e => { if (e.pointerType == UnityEngine.UIElements.PointerType.mouse) v.Border(1, Pal.A(Pal.Brass, 0.55f)); });
+                v.RegisterCallback<PointerLeaveEvent>(e => v.Border(1, Pal.A(Pal.Brass, 0.18f)));
             }
             return v;
         }
@@ -445,13 +445,16 @@ namespace NoThanks.Proto
             panel.Add(lobby);
             _menuOverlay.Add(panel);
             U.Show(_menuOverlay, false);
+            _menuShown = false;
             Root.Add(_menuOverlay);
         }
 
-        public bool MenuVisible { get { return _menuOverlay != null && _menuOverlay.resolvedStyle.display == DisplayStyle.Flex; } }
+        private bool _menuShown;
+        public bool MenuVisible { get { return _menuOverlay != null && _menuShown; } }
 
         public void ShowMenu(bool show, int latency, bool reduced, bool muted)
         {
+            _menuShown = show;
             U.Show(_menuOverlay, show);
             if (!show) return;
             foreach (var ms in new[] { 0, 100, 300 })

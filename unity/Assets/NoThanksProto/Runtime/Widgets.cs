@@ -226,7 +226,7 @@ namespace NoThanks.Proto
             });
             RegisterCallback<PointerUpEvent>(e => Release());
             RegisterCallback<PointerLeaveEvent>(e => { _hover = false; Release(); Refresh(); });
-            RegisterCallback<PointerEnterEvent>(e => { _hover = true; Refresh(); });
+            RegisterCallback<PointerEnterEvent>(e => { _hover = e.pointerType == UnityEngine.UIElements.PointerType.mouse; Refresh(); }); // 터치는 hover 없음
             RegisterCallback<PointerCancelEvent>(e => Release());
             this.AddManipulator(new Clickable(() =>
             {
@@ -296,7 +296,7 @@ namespace NoThanks.Proto
             style.marginRight = 6; style.marginBottom = 6;
             _l = U.Text(text, fontSize, Pal.Text);
             Add(_l);
-            RegisterCallback<PointerEnterEvent>(e => { if (!_on) style.backgroundColor = Pal.A(Pal.Brass, 0.18f); });
+            RegisterCallback<PointerEnterEvent>(e => { if (!_on && e.pointerType == UnityEngine.UIElements.PointerType.mouse) style.backgroundColor = Pal.A(Pal.Brass, 0.18f); });
             RegisterCallback<PointerLeaveEvent>(e => Refresh());
             RegisterCallback<PointerDownEvent>(e => { U.SetScale(this, 0.95f); Sfx.Play(SfxId.Tap, 1.1f, 0.7f); Haptics.Light(); });
             RegisterCallback<PointerUpEvent>(e => U.SetScale(this, 1f));

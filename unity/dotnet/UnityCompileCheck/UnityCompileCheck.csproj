@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Unity 에디터 없이 런타임 스크립트(Assets/NoThanksProto/Runtime)의 컴파일 오류를 잡기 위한 검사용 프로젝트.
+    - UnityEngine API: NuGet UnityEngine.Modules 2021.3 참조 어셈블리 (Unity 6 과 차이가 있을 수 있음 → 최종 확인은 에디터)
+    - LitMotion / URP Light2D / Input System: 실제 소스에서 확인한 시그니처만 Stubs.cs 로 흉내
+    실행 예: dotnet build -p:ExtraDefines="ENABLE_INPUT_SYSTEM"   또는   "ENABLE_LEGACY_INPUT_MANAGER"   또는   "ENABLE_INPUT_SYSTEM%3BUNITY_WEBGL"
+    에디터 스크립트(Assets/NoThanksProto/Editor)는 UnityEditor 참조가 없어 여기서 검사하지 않는다.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0414;CS0169</NoWarn>
+    <ExtraDefines Condition="'$(ExtraDefines)' == ''">ENABLE_INPUT_SYSTEM</ExtraDefines>
+    <DefineConstants>$(DefineConstants);$(ExtraDefines)</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Stubs.cs" />
+    <Compile Include="../../Assets/NoThanksProto/Core/**/*.cs" />
+    <Compile Include="../../Assets/NoThanksProto/Runtime/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="UnityEngine.Modules" Version="2021.3.33" />
+  </ItemGroup>
+</Project>

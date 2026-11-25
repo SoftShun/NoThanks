@@ -56,6 +56,7 @@ namespace NoThanks.Proto
         private int _lastTickSec = -1;
         private float _inputAt = -1;
         private bool _awaitFrame;
+        private int _predFrame = -1;
         public float LastInputMs { get; private set; }
         public float AvgInputMs { get; private set; }
         private int _inputSamples;
@@ -130,6 +131,7 @@ namespace NoThanks.Proto
         // ------------------------------------------------------------------
         public void Update()
         {
+            MeasureInput();
             if (Clock != null) Clock.AdvanceTo(Time.realtimeSinceStartupAsDouble * 1000.0 - _clockBase);
             var s = Screen;
             if (s == null || Client == null) return;
@@ -152,7 +154,8 @@ namespace NoThanks.Proto
                 passSub = me.Chips > 0 ? "칩 1개 지불 (남은 " + (me.Chips - 1) + ")" : "칩이 없어 패스 불가";
             }
             s.SetButtons(canAct, canPass, takeSub, passSub);
-            s.SetHint(myTurn && canAct ? (Model.Pile > 0 ? "카드 위 칩 " + Model.Pile + "개" : "아직 칩이 없습니다") : "");
+            bool revealing = Model.RevealPending || (Client.Pending != null && Client.Pending.Kind == PendingKind.TakeHidden);
+            s.SetHint(revealing ? "숨김 카드 공개 중…" : myTurn && canAct ? (Model.Pile > 0 ? "카드 위 칩 " + Model.Pile + "개" : "아직 칩이 없습니다") : "");
 
             // 턴 타이머
             if (myTurn && _turnDeadline > 0 && _turnTotal > 0)
@@ -173,13 +176,20 @@ namespace NoThanks.Proto
         /// <summary>LateUpdate: 입력 후 첫 연출 프레임까지의 시간 측정.</summary>
         public void LateUpdate()
         {
-            if (_awaitFrame && _inputAt > 0)
+            // 예측 연출이 시작된 프레임 번호를 기록 → 다음 프레임 시작(=그 프레임이 화면에 나간 뒤)에 측정
+            if (_awaitFrame && _inputAt > 0 && _predFrame < 0) _predFrame = Time.frameCount;
+        }
+
+        private void MeasureInput()
+        {
+            if (_predFrame >= 0 && Time.frameCount > _predFrame && _inputAt > 0)
             {
-                _awaitFrame = false;
                 LastInputMs = (Time.realtimeSinceStartup - _inputAt) * 1000f;
                 _inputSamples++;
                 AvgInputMs += (LastInputMs - AvgInputMs) / _inputSamples;
                 _inputAt = -1;
+                _predFrame = -1;
+                _awaitFrame = false;
             }
         }
 
